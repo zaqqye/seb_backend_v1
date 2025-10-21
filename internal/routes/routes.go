@@ -21,7 +21,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
     adminCtrl := &controllers.AdminController{DB: db}
 
     // Public
-    auth := r.Group("/api/auth")
+    auth := r.Group("/api/v1/auth")
     {
         // Registration restricted to admin; moved under /api/admin/users
         auth.POST("/login", authCtrl.Login)
@@ -32,7 +32,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
         JWTSecret:    cfg.JWTSecret,
         JWTExpiresIn: expiresMins,
     })
-    api := r.Group("/api", authMW)
+    api := r.Group("/api/v1", authMW)
     {
         api.GET("/auth/me", authCtrl.Me)
         api.POST("/auth/logout", authCtrl.Logout)

@@ -9,17 +9,17 @@
   - `go mod tidy`
   - `go run ./cmd/server`
 
-**Endpoints**
-- `POST /api/auth/login`         — public, returns JWT token.
-- `GET  /api/auth/me`            — requires auth, returns current user.
-- `POST /api/auth/logout`        — requires auth, stateless logout (client should discard token).
-- `GET  /api/admin/users`        — admin only, list users.
-- `POST /api/admin/users`        — admin only, create user (register). Body supports `role` and `active`.
-- `GET  /api/admin/users/:user_id`   — admin only, get one user.
-- `PUT  /api/admin/users/:user_id`   — admin only, update user (partial supported).
-- `DELETE /api/admin/users/:user_id` — admin only, delete user.
-- `GET  /api/pengawas/panel`     — `pengawas` or `admin`.
-- `GET  /api/siswa/panel`        — `siswa` or `admin`.
+**Endpoints (v1)**
+- `POST /api/v1/auth/login`         — public, returns JWT token.
+- `GET  /api/v1/auth/me`            — requires auth, returns current user.
+- `POST /api/v1/auth/logout`        — requires auth, stateless logout (client should discard token).
+- `GET  /api/v1/admin/users`        — admin only, list users.
+- `POST /api/v1/admin/users`        — admin only, create user (register). Body supports `role` and `active`.
+- `GET  /api/v1/admin/users/:user_id`   — admin only, get one user.
+- `PUT  /api/v1/admin/users/:user_id`   — admin only, update user (partial supported).
+- `DELETE /api/v1/admin/users/:user_id` — admin only, delete user.
+- `GET  /api/v1/pengawas/panel`     — `pengawas` or `admin`.
+- `GET  /api/v1/siswa/panel`        — `siswa` or `admin`.
 
 **Environment**
 - `PORT` — server port, default 8080
@@ -33,7 +33,7 @@
 - Admin manages registration via `POST /api/admin/users`. If `role` is omitted, defaults to `siswa`. `active` defaults to `true`.
 
 **Admin List Users Pagination/Sort**
-- `GET /api/admin/users` supports query params:
+- `GET /api/v1/admin/users` supports query params:
   - `limit` (int, default 20), `page` (int, default 1)
   - `all` (bool: `true`/`1`) to return all without pagination
   - `sort_by` in: `id, created_at, full_name, email, role, kelas, jurusan, active`
