@@ -1,4 +1,4 @@
-module github.com/example/seb_backend_v1
+module github.com/zaqqye/seb_backend_v1
 
 go 1.21
 
