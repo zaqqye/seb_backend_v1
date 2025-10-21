@@ -9,7 +9,7 @@ import (
     "github.com/golang-jwt/jwt/v5"
     "gorm.io/gorm"
 
-    "github.com/example/seb_backend_v1/internal/models"
+    "github.com/zaqqye/seb_backend_v1/internal/models"
 )
 
 type AuthConfig struct {

@@ -6,9 +6,9 @@ import (
     "github.com/gin-gonic/gin"
     "gorm.io/gorm"
 
-    "github.com/example/seb_backend_v1/internal/config"
-    "github.com/example/seb_backend_v1/internal/controllers"
-    "github.com/example/seb_backend_v1/internal/middleware"
+    "github.com/zaqqye/seb_backend_v1/internal/config"
+    "github.com/zaqqye/seb_backend_v1/internal/controllers"
+    "github.com/zaqqye/seb_backend_v1/internal/middleware"
 )
 
 func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {

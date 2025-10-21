@@ -9,7 +9,7 @@ import (
     "github.com/gin-gonic/gin"
     "gorm.io/gorm"
 
-    "github.com/example/seb_backend_v1/internal/models"
+    "github.com/zaqqye/seb_backend_v1/internal/models"
 )
 
 type AdminController struct {

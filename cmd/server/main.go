@@ -8,9 +8,9 @@ import (
 
     "github.com/gin-gonic/gin"
 
-    "github.com/example/seb_backend_v1/internal/config"
-    "github.com/example/seb_backend_v1/internal/database"
-    "github.com/example/seb_backend_v1/internal/routes"
+    "github.com/zaqqye/seb_backend_v1/internal/config"
+    "github.com/zaqqye/seb_backend_v1/internal/database"
+    "github.com/zaqqye/seb_backend_v1/internal/routes"
 )
 
 func main() {

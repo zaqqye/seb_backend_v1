@@ -6,8 +6,8 @@ import (
     "gorm.io/driver/postgres"
     "gorm.io/gorm"
 
-    "github.com/example/seb_backend_v1/internal/config"
-    "github.com/example/seb_backend_v1/internal/models"
+    "github.com/zaqqye/seb_backend_v1/internal/config"
+    "github.com/zaqqye/seb_backend_v1/internal/models"
 )
 
 func Connect(cfg *config.Config) (*gorm.DB, error) {

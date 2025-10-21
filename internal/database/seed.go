@@ -6,9 +6,9 @@ import (
     "github.com/google/uuid"
     "gorm.io/gorm"
 
-    "github.com/example/seb_backend_v1/internal/config"
-    "github.com/example/seb_backend_v1/internal/models"
-    "github.com/example/seb_backend_v1/internal/utils"
+    "github.com/zaqqye/seb_backend_v1/internal/config"
+    "github.com/zaqqye/seb_backend_v1/internal/models"
+    "github.com/zaqqye/seb_backend_v1/internal/utils"
 )
 
 func SeedAdmin(db *gorm.DB, cfg *config.Config) error {
