@@ -12,7 +12,7 @@ import (
 
 func Connect(cfg *config.Config) (*gorm.DB, error) {
     dsn := fmt.Sprintf(
-        "host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
+        "host=%s user=%s password=%s dbname=%s port=%s sslmode=%s client_encoding=UTF8 TimeZone=UTC",
         cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSSLMode,
     )
     return gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -21,4 +21,3 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 func Migrate(db *gorm.DB) error {
     return db.AutoMigrate(&models.User{})
 }
-

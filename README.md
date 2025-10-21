@@ -30,7 +30,8 @@
 
 **Notes**
 - On first run, the server auto-migrates the `users` table.
-- Admin manages registration via `POST /api/admin/users`. If `role` is omitted, defaults to `siswa`. `active` defaults to `true`.
+- Admin manages registration via `POST /api/v1/admin/users`. If `role` is omitted, defaults to `siswa`. `active` defaults to `true`.
+- If you see a Postgres error like `simple protocol queries must be run with client_encoding=UTF8`, ensure your Postgres instance supports UTF8 client encoding. The DSN in code sets `client_encoding=UTF8`; alternatively set env `PGCLIENTENCODING=UTF8`.
 
 **Admin List Users Pagination/Sort**
 - `GET /api/v1/admin/users` supports query params:
