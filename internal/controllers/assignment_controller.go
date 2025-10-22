@@ -22,7 +22,7 @@ type assignRequest struct {
 
 // AssignSupervisor assigns a pengawas user to a room
 func (ac *AssignmentController) AssignSupervisor(c *gin.Context) {
-    roomID, err := strconv.Atoi(c.Param("room_id"))
+    roomID, err := strconv.Atoi(c.Param("id"))
     if err != nil || roomID <= 0 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
@@ -58,7 +58,7 @@ func (ac *AssignmentController) AssignSupervisor(c *gin.Context) {
 
 // UnassignSupervisor removes a pengawas from a room
 func (ac *AssignmentController) UnassignSupervisor(c *gin.Context) {
-    roomID, err := strconv.Atoi(c.Param("room_id"))
+    roomID, err := strconv.Atoi(c.Param("id"))
     if err != nil || roomID <= 0 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
@@ -77,7 +77,7 @@ func (ac *AssignmentController) UnassignSupervisor(c *gin.Context) {
 
 // AssignStudent assigns a siswa user to a room
 func (ac *AssignmentController) AssignStudent(c *gin.Context) {
-    roomID, err := strconv.Atoi(c.Param("room_id"))
+    roomID, err := strconv.Atoi(c.Param("id"))
     if err != nil || roomID <= 0 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
@@ -111,7 +111,7 @@ func (ac *AssignmentController) AssignStudent(c *gin.Context) {
 
 // UnassignStudent removes a siswa from a room
 func (ac *AssignmentController) UnassignStudent(c *gin.Context) {
-    roomID, err := strconv.Atoi(c.Param("room_id"))
+    roomID, err := strconv.Atoi(c.Param("id"))
     if err != nil || roomID <= 0 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
@@ -130,7 +130,7 @@ func (ac *AssignmentController) UnassignStudent(c *gin.Context) {
 
 // ListSupervisors lists supervisors assigned to a room with pagination/sort.
 func (ac *AssignmentController) ListSupervisors(c *gin.Context) {
-    roomID, err := strconv.Atoi(c.Param("room_id"))
+    roomID, err := strconv.Atoi(c.Param("id"))
     if err != nil || roomID <= 0 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
@@ -182,7 +182,7 @@ func (ac *AssignmentController) ListSupervisors(c *gin.Context) {
 
 // ListStudents lists students assigned to a room with pagination/sort.
 func (ac *AssignmentController) ListStudents(c *gin.Context) {
-    roomID, err := strconv.Atoi(c.Param("room_id"))
+    roomID, err := strconv.Atoi(c.Param("id"))
     if err != nil || roomID <= 0 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return

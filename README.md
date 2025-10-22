@@ -36,10 +36,10 @@
 - `DELETE /api/v1/admin/majors/:id`   — delete major
 
   Assignments (admin-only):
-- `POST   /api/v1/admin/rooms/:room_id/supervisors`          — assign pengawas to room (body: `user_id`)
-- `DELETE /api/v1/admin/rooms/:room_id/supervisors/:user_id` — unassign pengawas from room
-- `POST   /api/v1/admin/rooms/:room_id/students`             — assign siswa to room (body: `user_id`)
-- `DELETE /api/v1/admin/rooms/:room_id/students/:user_id`    — unassign siswa from room
+- `POST   /api/v1/admin/rooms/:id/supervisors`          - assign pengawas to room (body: `user_id`)
+- `DELETE /api/v1/admin/rooms/:id/supervisors/:user_id` - unassign pengawas from room
+- `POST   /api/v1/admin/rooms/:id/students`             - assign siswa to room (body: `user_id`)
+- `DELETE /api/v1/admin/rooms/:id/students/:user_id`    - unassign siswa from room
 
   SDUI & Remote Config:
 - `GET /api/v1/sdui/screens/:name`       — public; returns JSON screen (login works without auth)

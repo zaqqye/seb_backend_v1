@@ -71,12 +71,12 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
             // Assignments: supervisors and students to rooms
             assignCtrl := &controllers.AssignmentController{DB: db}
-            admin.POST("/rooms/:room_id/supervisors", assignCtrl.AssignSupervisor)
-            admin.DELETE("/rooms/:room_id/supervisors/:user_id", assignCtrl.UnassignSupervisor)
-            admin.GET("/rooms/:room_id/supervisors", assignCtrl.ListSupervisors)
-            admin.POST("/rooms/:room_id/students", assignCtrl.AssignStudent)
-            admin.DELETE("/rooms/:room_id/students/:user_id", assignCtrl.UnassignStudent)
-            admin.GET("/rooms/:room_id/students", assignCtrl.ListStudents)
+            admin.POST("/rooms/:id/supervisors", assignCtrl.AssignSupervisor)
+            admin.DELETE("/rooms/:id/supervisors/:user_id", assignCtrl.UnassignSupervisor)
+            admin.GET("/rooms/:id/supervisors", assignCtrl.ListSupervisors)
+            admin.POST("/rooms/:id/students", assignCtrl.AssignStudent)
+            admin.DELETE("/rooms/:id/students/:user_id", assignCtrl.UnassignStudent)
+            admin.GET("/rooms/:id/students", assignCtrl.ListStudents)
 
             // SDUI screens admin CRUD
             sduiAdmin := &controllers.SDUIAdminController{DB: db}
