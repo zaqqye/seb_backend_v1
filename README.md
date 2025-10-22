@@ -105,16 +105,15 @@
   Exit Codes (admin + pengawas):
 - `POST /api/v1/exit-codes/generate` — generate exit code. Body:
   - `room_id` (required for pengawas; optional for admin)
-  - `expires_in_minutes` (int, default 10)
   - `length` (optional, default 6)
 - `GET  /api/v1/exit-codes` — list exit codes with query params:
-  - `limit`, `page`, `all`, `sort_by` (id, created_at, expired_at, code), `sort_dir`
+  - `limit`, `page`, `all`, `sort_by` (id, created_at, used_at, code), `sort_dir`
   - `room_id` — filter by room
-  - `active` — `true|false|1|0` (by `expired_at` vs now)
+  - `used` — `true|false|all` (default `false`, only unused)
   - pengawas hanya melihat data untuk ruangan yang diawasi
-- `POST /api/v1/exit-codes/:id/revoke` — revoke (expire now)
+- `POST /api/v1/exit-codes/:id/revoke` — revoke (mark as used now)
 
-- Exit codes: `code` unique. Revoke sets `expired_at` to now.
+- Exit codes: `code` unique. Revoke sets `used_at` to now.
 
 **Notes (Exit Codes)**
 - Pengawas hanya boleh generate/list/revoke untuk `room_id` yang menjadi pengawasnya.

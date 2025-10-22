@@ -232,7 +232,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
             "id":         e.ID,
             "room_id":    e.RoomIDRef,
             "code":       e.Code,
-            "expired_at": e.ExpiredAt,
+            "used_at":    e.UsedAt,
             "created_at": e.CreatedAt,
             "created_by": e.UserIDRef,
         })
