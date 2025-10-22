@@ -17,6 +17,11 @@ type Config struct {
     AdminEmail    string
     AdminPassword string
     AdminFullName string
+    // SDUI / Remote Config
+    LayoutVersion        string
+    MinAppVersionAndroid string
+    MinAppVersionIOS     string
+    SDUIHMACSecret       string
 }
 
 func Load() *Config {
@@ -33,6 +38,10 @@ func Load() *Config {
         AdminEmail:    getenv("ADMIN_EMAIL", "admin@example.com"),
         AdminPassword: getenv("ADMIN_PASSWORD", "admin123"),
         AdminFullName: getenv("ADMIN_FULL_NAME", "Administrator"),
+        LayoutVersion:        getenv("LAYOUT_VERSION", "1"),
+        MinAppVersionAndroid: getenv("MIN_APP_VERSION_ANDROID", "1"),
+        MinAppVersionIOS:     getenv("MIN_APP_VERSION_IOS", "1"),
+        SDUIHMACSecret:       getenv("SDUI_HMAC_SECRET", ""),
     }
 }
 

@@ -18,7 +18,7 @@ type AdminController struct {
 }
 
 func (a *AdminController) ListUsers(c *gin.Context) {
-    // Query params: limit, page, all, sort_by, sort_dir
+    // Query params: limit, page, all, sort_by, sort_dir, q, role, active
     all := strings.EqualFold(c.Query("all"), "true") || c.Query("all") == "1"
     limit := 20
     page := 1
@@ -53,20 +53,65 @@ func (a *AdminController) ListUsers(c *gin.Context) {
         sortCol = "created_at"
     }
     order := fmt.Sprintf("%s %s", sortCol, sortDir)
+    
+    // Filters
+    qText := strings.TrimSpace(c.Query("q"))
+    role := strings.TrimSpace(strings.ToLower(c.Query("role")))
+    activeStr := strings.TrimSpace(strings.ToLower(c.Query("active")))
+
+    base := a.DB.Model(&models.User{})
+    if qText != "" {
+        like := "%" + qText + "%"
+        base = base.Where("full_name ILIKE ? OR email ILIKE ?", like, like)
+    }
+    if role != "" {
+        if !IsValidRole(role) {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+            return
+        }
+        base = base.Where("role = ?", role)
+    }
+    if activeStr != "" {
+        switch activeStr {
+        case "true", "1":
+            base = base.Where("active = ?", true)
+        case "false", "0":
+            base = base.Where("active = ?", false)
+        default:
+            c.JSON(http.StatusBadRequest, gin.H{"error": "invalid active value"})
+            return
+        }
+    }
 
     var total int64
-    if err := a.DB.Model(&models.User{}).Count(&total).Error; err != nil {
+    if err := base.Count(&total).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
 
     var users []models.User
-    q := a.DB.Order(order)
+    listQ := a.DB.Order(order)
+    // reapply filters to list query
+    if qText != "" {
+        like := "%" + qText + "%"
+        listQ = listQ.Where("full_name ILIKE ? OR email ILIKE ?", like, like)
+    }
+    if role != "" {
+        listQ = listQ.Where("role = ?", role)
+    }
+    if activeStr != "" {
+        switch activeStr {
+        case "true", "1":
+            listQ = listQ.Where("active = ?", true)
+        case "false", "0":
+            listQ = listQ.Where("active = ?", false)
+        }
+    }
     if !all {
         offset := (page - 1) * limit
-        q = q.Offset(offset).Limit(limit)
+        listQ = listQ.Offset(offset).Limit(limit)
     }
-    if err := q.Find(&users).Error; err != nil {
+    if err := listQ.Find(&users).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
@@ -92,6 +137,16 @@ func (a *AdminController) ListUsers(c *gin.Context) {
         meta["page"] = page
         meta["sort_by"] = sortCol
         meta["sort_dir"] = sortDir
+    }
+    // reflect filters in meta
+    if qText != "" {
+        meta["q"] = qText
+    }
+    if role != "" {
+        meta["role"] = role
+    }
+    if activeStr != "" {
+        meta["active"] = activeStr
     }
     c.JSON(http.StatusOK, gin.H{"data": out, "meta": meta})
 }

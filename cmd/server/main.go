@@ -32,6 +32,10 @@ func main() {
         log.Fatalf("admin seed failed: %v", err)
     }
 
+    if err := database.SeedSDUIScreens(db); err != nil {
+        log.Fatalf("sdui seed failed: %v", err)
+    }
+
     r := gin.Default()
     routes.Register(r, db, cfg)
 
