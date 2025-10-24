@@ -17,8 +17,10 @@ import (
 
 type AuthController struct {
     DB        *gorm.DB
-    JWTSecret string
-    ExpiresIn time.Duration
+    AccessSecret string
+    RefreshSecret string
+    AccessTTL   time.Duration
+    RefreshTTL  time.Duration
 }
 
 type registerRequest struct {
@@ -108,31 +110,18 @@ func (a *AuthController) Login(c *gin.Context) {
         return
     }
 
-    now := time.Now().UTC()
-    claims := middleware.Claims{
-        UserID: user.UserID,
-        Role:   user.Role,
-        Email:  user.Email,
-        RegisteredClaims: jwt.RegisteredClaims{
-            Issuer:    "seb_backend_v1",
-            IssuedAt:  jwt.NewNumericDate(now),
-            ExpiresAt: jwt.NewNumericDate(now.Add(a.ExpiresIn)),
-            Subject:   strconv.FormatUint(uint64(user.ID), 10),
-        },
-    }
-
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-    tokenStr, err := token.SignedString([]byte(a.JWTSecret))
+    access, refresh, err := a.issueTokens(user)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to sign token"})
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
-
     c.JSON(http.StatusOK, gin.H{
-        "access_token": tokenStr,
+        "access_token": access.Token,
         "token_type":   "Bearer",
-        "expires_in":   int(a.ExpiresIn.Seconds()),
+        "expires_in":   int(a.AccessTTL.Seconds()),
         "role":         user.Role,
+        "refresh_token": refresh.Token,
+        "refresh_expires_in": int(a.RefreshTTL.Seconds()),
     })
 }
 
@@ -150,6 +139,139 @@ func (a *AuthController) Me(c *gin.Context) {
         "created_at": user.CreatedAt,
         "updated_at": user.UpdatedAt,
     })
+}
+
+type tokenPair struct {
+    Token string
+    JTI   string
+}
+
+func (a *AuthController) issueTokens(user models.User) (access tokenPair, refresh tokenPair, err error) {
+    now := time.Now().UTC()
+    sub := strconv.FormatUint(uint64(user.ID), 10)
+    // Access token
+    acl := middleware.Claims{
+        UserID: user.UserID,
+        Role:   user.Role,
+        Email:  user.Email,
+        RegisteredClaims: jwt.RegisteredClaims{
+            Issuer:    "seb_backend_v1",
+            IssuedAt:  jwt.NewNumericDate(now),
+            ExpiresAt: jwt.NewNumericDate(now.Add(a.AccessTTL)),
+            Subject:   sub,
+        },
+    }
+    at := jwt.NewWithClaims(jwt.SigningMethodHS256, acl)
+    atStr, err := at.SignedString([]byte(a.AccessSecret))
+    if err != nil { return }
+    access = tokenPair{Token: atStr}
+
+    // Refresh token with JTI
+    jti := uuid.NewString()
+    rcl := jwt.RegisteredClaims{
+        Issuer:    "seb_backend_v1",
+        IssuedAt:  jwt.NewNumericDate(now),
+        ExpiresAt: jwt.NewNumericDate(now.Add(a.RefreshTTL)),
+        Subject:   sub,
+        ID:        jti,
+    }
+    rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rcl)
+    rtStr, err := rt.SignedString([]byte(a.RefreshSecret))
+    if err != nil { return }
+    refresh = tokenPair{Token: rtStr, JTI: jti}
+
+    // Persist hashed refresh token
+    rec := models.RefreshToken{
+        TokenID:   jti,
+        UserIDRef: user.ID,
+        TokenHash: utils.SHA256Hex(rtStr),
+        ExpiresAt: now.Add(a.RefreshTTL),
+    }
+    if err = a.DB.Create(&rec).Error; err != nil { return }
+    return
+}
+
+type refreshRequest struct {
+    RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+func (a *AuthController) Refresh(c *gin.Context) {
+    var req refreshRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    // Parse refresh token
+    tok, err := jwt.ParseWithClaims(req.RefreshToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+        return []byte(a.RefreshSecret), nil
+    })
+    if err != nil || !tok.Valid {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+        return
+    }
+    claims := tok.Claims.(*jwt.RegisteredClaims)
+    // Check DB
+    var rec models.RefreshToken
+    if err := a.DB.Where("token_hash = ?", utils.SHA256Hex(req.RefreshToken)).First(&rec).Error; err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token not found"})
+        return
+    }
+    if rec.RevokedAt != nil || time.Now().UTC().After(rec.ExpiresAt) {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token expired or revoked"})
+        return
+    }
+    var user models.User
+    if err := a.DB.First(&user, rec.UserIDRef).Error; err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+        return
+    }
+    // Rotate refresh token
+    access, newRefresh, err := a.issueTokens(user)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    // Revoke old
+    now := time.Now().UTC()
+    a.DB.Model(&rec).Updates(map[string]interface{}{
+        "revoked_at":         &now,
+        "replaced_by_token_id": newRefresh.JTI,
+    })
+    c.JSON(http.StatusOK, gin.H{
+        "access_token": access.Token,
+        "token_type":   "Bearer",
+        "expires_in":   int(a.AccessTTL.Seconds()),
+        "refresh_token": newRefresh.Token,
+        "refresh_expires_in": int(a.RefreshTTL.Seconds()),
+    })
+}
+
+type logoutRequest struct {
+    RefreshToken string `json:"refresh_token"`
+    All          bool   `json:"all"`
+}
+
+// Logout endpoint now revokes refresh tokens (specific or all). Access token remains valid until expiry.
+func (a *AuthController) Logout(c *gin.Context) {
+    var req logoutRequest
+    _ = c.ShouldBindJSON(&req)
+    // If specific refresh token provided, revoke it
+    if req.RefreshToken != "" {
+        var rec models.RefreshToken
+        if err := a.DB.Where("token_hash = ?", utils.SHA256Hex(req.RefreshToken)).First(&rec).Error; err == nil {
+            now := time.Now().UTC()
+            a.DB.Model(&rec).Update("revoked_at", &now)
+        }
+    }
+    if req.All {
+        // Revoke all refresh tokens for current user
+        if uVal, ok := c.Get("user"); ok {
+            user := uVal.(models.User)
+            now := time.Now().UTC()
+            a.DB.Model(&models.RefreshToken{}).Where("user_id_ref = ? AND revoked_at IS NULL", user.ID).Update("revoked_at", &now)
+        }
+    }
+    c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
 // Logout endpoint for stateless JWT: client should discard token

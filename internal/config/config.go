@@ -13,7 +13,7 @@ type Config struct {
     DBName       string
     DBSSLMode    string
     JWTSecret    string
-    JWTExpiresIn string // minutes
+    JWTExpiresIn string // minutes (legacy; used as default Access TTL)
     AdminEmail    string
     AdminPassword string
     AdminFullName string
@@ -22,6 +22,10 @@ type Config struct {
     MinAppVersionAndroid string
     MinAppVersionIOS     string
     SDUIHMACSecret       string
+    // Token settings
+    AccessTokenTTLMinutes  string // minutes
+    RefreshTokenTTLDays    string // days
+    RefreshJWTSecret       string
 }
 
 func Load() *Config {
@@ -42,6 +46,9 @@ func Load() *Config {
         MinAppVersionAndroid: getenv("MIN_APP_VERSION_ANDROID", "1"),
         MinAppVersionIOS:     getenv("MIN_APP_VERSION_IOS", "1"),
         SDUIHMACSecret:       getenv("SDUI_HMAC_SECRET", ""),
+        AccessTokenTTLMinutes: getenv("ACCESS_TOKEN_TTL_MINUTES", getenv("JWT_EXPIRES_IN", "15")),
+        RefreshTokenTTLDays:   getenv("REFRESH_TOKEN_TTL_DAYS", "30"),
+        RefreshJWTSecret:      getenv("REFRESH_JWT_SECRET", getenv("JWT_SECRET", "supersecret_change_me")),
     }
 }
 

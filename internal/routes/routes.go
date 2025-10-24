@@ -17,7 +17,22 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
     if err != nil || expiresMins == 0 {
         expiresMins = 60 * time.Minute
     }
-    authCtrl := &controllers.AuthController{DB: db, JWTSecret: cfg.JWTSecret, ExpiresIn: expiresMins}
+    // Token TTLs
+    accessTTL, err2 := time.ParseDuration(cfg.AccessTokenTTLMinutes + "m")
+    if err2 != nil || accessTTL <= 0 {
+        accessTTL = 15 * time.Minute
+    }
+    refreshDays, err3 := time.ParseDuration(cfg.RefreshTokenTTLDays + "24h")
+    if err3 != nil || refreshDays <= 0 {
+        refreshDays = 30 * 24 * time.Hour
+    }
+    authCtrl := &controllers.AuthController{
+        DB:            db,
+        AccessSecret:  cfg.JWTSecret,
+        RefreshSecret: cfg.RefreshJWTSecret,
+        AccessTTL:     accessTTL,
+        RefreshTTL:    refreshDays,
+    }
     adminCtrl := &controllers.AdminController{DB: db}
     roomCtrl := &controllers.RoomController{DB: db}
     majorCtrl := &controllers.MajorController{DB: db}
@@ -27,6 +42,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
     {
         // Registration restricted to admin; moved under /api/admin/users
         auth.POST("/login", authCtrl.Login)
+        auth.POST("/refresh", authCtrl.Refresh)
     }
 
     // Public SDUI and Config (non-auth; some screens will 401 if role missing)
