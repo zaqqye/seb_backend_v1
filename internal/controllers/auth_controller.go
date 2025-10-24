@@ -209,7 +209,7 @@ func (a *AuthController) Refresh(c *gin.Context) {
         c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
         return
     }
-    claims := tok.Claims.(*jwt.RegisteredClaims)
+    // claims not needed; subject is looked up from persisted refresh record
     // Check DB
     var rec models.RefreshToken
     if err := a.DB.Where("token_hash = ?", utils.SHA256Hex(req.RefreshToken)).First(&rec).Error; err != nil {
@@ -271,10 +271,5 @@ func (a *AuthController) Logout(c *gin.Context) {
             a.DB.Model(&models.RefreshToken{}).Where("user_id_ref = ? AND revoked_at IS NULL", user.ID).Update("revoked_at", &now)
         }
     }
-    c.JSON(http.StatusOK, gin.H{"message": "logged out"})
-}
-
-// Logout endpoint for stateless JWT: client should discard token
-func (a *AuthController) Logout(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
