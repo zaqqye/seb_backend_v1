@@ -137,6 +137,9 @@ func (s *SDUIController) respondWithSignature(c *gin.Context, payload any) {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode payload"})
         return
     }
+    if u, ok := currentUser(c); ok {
+        b = applyUserPlaceholders(b, u)
+    }
     // Add HMAC signature header if secret provided
     if sec := strings.TrimSpace(s.Cfg.SDUIHMACSecret); sec != "" {
         mac := hmac.New(sha256.New, []byte(sec))
@@ -148,6 +151,9 @@ func (s *SDUIController) respondWithSignature(c *gin.Context, payload any) {
 }
 
 func (s *SDUIController) respondRawWithSignature(c *gin.Context, raw []byte) {
+    if u, ok := currentUser(c); ok {
+        raw = applyUserPlaceholders(raw, u)
+    }
     if sec := strings.TrimSpace(s.Cfg.SDUIHMACSecret); sec != "" {
         mac := hmac.New(sha256.New, []byte(sec))
         mac.Write(raw)
@@ -155,4 +161,27 @@ func (s *SDUIController) respondRawWithSignature(c *gin.Context, raw []byte) {
         c.Header("X-SDUI-Signature", hex.EncodeToString(sig))
     }
     c.Data(http.StatusOK, "application/json; charset=utf-8", raw)
+}
+
+func currentUser(c *gin.Context) (*models.User, bool) {
+    if uVal, ok := c.Get("user"); ok {
+        u := uVal.(models.User)
+        return &u, true
+    }
+    return nil, false
+}
+
+func applyUserPlaceholders(data []byte, u *models.User) []byte {
+    if u == nil {
+        return data
+    }
+    s := string(data)
+    r := strings.NewReplacer(
+        "{{full_name}}", u.FullName,
+        "{{email}}", u.Email,
+        "{{role}}", u.Role,
+        "{{user_id}}", u.UserID,
+    )
+    s = r.Replace(s)
+    return []byte(s)
 }
