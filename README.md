@@ -114,6 +114,15 @@
 - `POST /api/v1/exit-codes/:id/revoke` — revoke (mark as used now)
 
 - Exit codes: `code` unique. Revoke sets `used_at` to now.
+ 
+  Monitoring (admin + pengawas):
+ - `GET  /api/v1/monitoring/students` — list siswa status; query: `q`, `room_id`, pagination/sort
+ - `POST /api/v1/monitoring/students/:id/logout` — force logout + block from exam
+ - `POST /api/v1/monitoring/students/:id/allow` — allow siswa to start exam again
+ 
+  Student App Status (siswa):
+ - `GET  /api/v1/siswa/status` — get current app status
+ - `POST /api/v1/siswa/status` — update status; body: `{ app_version, locked }`
 
 **Notes (Exit Codes)**
 - Pengawas hanya boleh generate/list/revoke untuk `room_id` yang menjadi pengawasnya.

@@ -301,6 +301,8 @@ type consumeRequest struct {
 }
 
 func (ec *ExitCodeController) Consume(c *gin.Context) {
+    // Optional: if siswa memanggil endpoint ini, setelah berhasil konsumsi kode,
+    // status akan di-set ke locked=false (keluar dari mode terkunci)
     var req consumeRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -333,6 +335,22 @@ func (ec *ExitCodeController) Consume(c *gin.Context) {
         }
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
+    }
+    // Jika pemanggil adalah siswa, set status locked=false
+    if uVal, ok := c.Get("user"); ok {
+        user := uVal.(models.User)
+        if strings.ToLower(user.Role) == "siswa" {
+            var st models.StudentStatus
+            if err := ec.DB.Where("user_id_ref = ?", user.ID).First(&st).Error; err != nil {
+                if errors.Is(err, gorm.ErrRecordNotFound) {
+                    st = models.StudentStatus{UserIDRef: user.ID, Locked: false}
+                    _ = ec.DB.Create(&st).Error
+                }
+            } else {
+                st.Locked = false
+                _ = ec.DB.Save(&st).Error
+            }
+        }
     }
     c.JSON(http.StatusOK, gin.H{"message": "consumed"})
 }

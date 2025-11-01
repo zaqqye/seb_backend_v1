@@ -28,5 +28,6 @@ func Migrate(db *gorm.DB) error {
         &models.RoomStudent{},
         &models.SduiScreen{},
         &models.RefreshToken{},
+        &models.StudentStatus{},
     )
 }

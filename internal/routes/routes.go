@@ -36,6 +36,8 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
     adminCtrl := &controllers.AdminController{DB: db}
     roomCtrl := &controllers.RoomController{DB: db}
     majorCtrl := &controllers.MajorController{DB: db}
+    studentStatusCtrl := &controllers.StudentStatusController{DB: db}
+    monCtrl := &controllers.MonitoringController{DB: db}
 
     // Public
     auth := r.Group("/api/v1/auth")
@@ -117,6 +119,9 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
             siswa.GET("/panel", func(c *gin.Context) {
                 c.JSON(200, gin.H{"message": "siswa panel"})
             })
+            // Student status update/read for monitoring
+            siswa.GET("/status", studentStatusCtrl.GetSelf)
+            siswa.POST("/status", studentStatusCtrl.UpdateSelf)
         }
 
         // Exit Codes (admin + pengawas)
@@ -127,7 +132,18 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
             exit.GET("", exitCtrl.List)
             exit.POST(":id/revoke", exitCtrl.Revoke)
             // Consume endpoint for mobile app
-            exit.POST("/consume", exitCtrl.Consume)
+            // Note: route consume untuk siswa/pengawas/admin didefinisikan di luar group ini
+        }
+
+        // Siswa, pengawas, dan admin boleh consume exit code (auth wajib)
+        api.POST("/exit-codes/consume", middleware.RequireRoles("siswa", "pengawas", "admin"), exitCtrl.Consume)
+
+        // Monitoring (admin + pengawas)
+        monitoring := api.Group("/monitoring", middleware.RequireRoles("admin", "pengawas"))
+        {
+            monitoring.GET("/students", monCtrl.ListStudents)
+            monitoring.POST("/students/:id/logout", monCtrl.ForceLogout)
+            monitoring.POST("/students/:id/allow", monCtrl.AllowExam)
         }
 
         // SDUI and Config with auth context (role-aware)
