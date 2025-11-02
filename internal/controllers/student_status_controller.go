@@ -15,8 +15,9 @@ type StudentStatusController struct {
 }
 
 type updateStatusRequest struct {
-    AppVersion string `json:"app_version"`
-    Locked     *bool  `json:"locked"`
+    AppVersion      string `json:"app_version"`
+    Locked          *bool  `json:"locked"`
+    BlockedFromExam *bool  `json:"blocked_from_exam"`
 }
 
 // UpdateSelf allows a siswa to update their app version and lock status.
@@ -41,6 +42,7 @@ func (sc *StudentStatusController) UpdateSelf(c *gin.Context) {
             st = models.StudentStatus{UserIDRef: user.ID}
             if req.AppVersion != "" { st.AppVersion = req.AppVersion }
             if req.Locked != nil { st.Locked = *req.Locked }
+            if req.BlockedFromExam != nil { st.BlockedFromExam = *req.BlockedFromExam }
             // If locking requested but blocked, prevent
             if st.Locked {
                 // Check blocked flag default false
@@ -65,6 +67,9 @@ func (sc *StudentStatusController) UpdateSelf(c *gin.Context) {
                 return
             }
             st.Locked = *req.Locked
+        }
+        if req.BlockedFromExam != nil {
+            st.BlockedFromExam = *req.BlockedFromExam
         }
         if err := sc.DB.Save(&st).Error; err != nil {
             c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -111,4 +116,3 @@ func (sc *StudentStatusController) GetSelf(c *gin.Context) {
         "updated_at":        st.UpdatedAt,
     })
 }
-
