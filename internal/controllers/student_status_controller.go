@@ -24,14 +24,20 @@ type updateStatusRequest struct {
 func (sc *StudentStatusController) UpdateSelf(c *gin.Context) {
     uVal, _ := c.Get("user")
     user := uVal.(models.User)
-    if strings.ToLower(user.Role) != "siswa" {
-        c.JSON(http.StatusForbidden, gin.H{"error": "only siswa can update status"})
+    role := strings.ToLower(user.Role)
+    if role != "siswa" && role != "admin" && role != "pengawas" {
+        c.JSON(http.StatusForbidden, gin.H{"error": "role_not_allowed"})
         return
     }
 
     var req updateStatusRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    if req.BlockedFromExam != nil && !*req.BlockedFromExam && role == "siswa" {
+        c.JSON(http.StatusForbidden, gin.H{"error": "blocked_from_exam_cannot_be_cleared_by_siswa"})
         return
     }
 
@@ -90,8 +96,9 @@ func (sc *StudentStatusController) UpdateSelf(c *gin.Context) {
 func (sc *StudentStatusController) GetSelf(c *gin.Context) {
     uVal, _ := c.Get("user")
     user := uVal.(models.User)
-    if strings.ToLower(user.Role) != "siswa" {
-        c.JSON(http.StatusForbidden, gin.H{"error": "only siswa can read status"})
+    role := strings.ToLower(user.Role)
+    if role != "siswa" && role != "admin" && role != "pengawas" {
+        c.JSON(http.StatusForbidden, gin.H{"error": "role_not_allowed"})
         return
     }
     var st models.StudentStatus

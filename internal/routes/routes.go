@@ -114,7 +114,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
         }
 
         // Siswa area (and admin)
-        siswa := api.Group("/siswa", middleware.RequireRoles("siswa", "admin"))
+        siswa := api.Group("/siswa", middleware.RequireRoles("siswa", "admin", "pengawas"))
         {
             siswa.GET("/panel", func(c *gin.Context) {
                 c.JSON(200, gin.H{"message": "siswa panel"})
