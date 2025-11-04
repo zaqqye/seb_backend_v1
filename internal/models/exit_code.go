@@ -3,12 +3,13 @@ package models
 import "time"
 
 type ExitCode struct {
-    ID        uint       `gorm:"primaryKey"`
-    UserIDRef uint
-    RoomIDRef *uint
-    Code      string     `gorm:"uniqueIndex"`
-    UsedAt    *time.Time `gorm:"index"`
-    CreatedAt time.Time
+    ID               uint       `gorm:"primaryKey"`
+    UserIDRef        uint
+    StudentUserIDRef uint       `gorm:"index"`
+    RoomIDRef        *uint
+    Code             string     `gorm:"uniqueIndex"`
+    UsedAt           *time.Time `gorm:"index"`
+    CreatedAt        time.Time
 }
 
 // RoomSupervisor maps a pengawas/admin user to rooms they supervise.

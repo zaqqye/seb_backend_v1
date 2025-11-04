@@ -9,8 +9,8 @@ import (
 
     "github.com/gin-gonic/gin"
     "github.com/jackc/pgconn"
-    "gorm.io/gorm/clause"
     "gorm.io/gorm"
+    "gorm.io/gorm/clause"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
     "github.com/zaqqye/seb_backend_v1/internal/utils"
@@ -19,6 +19,8 @@ import (
 type ExitCodeController struct {
     DB *gorm.DB
 }
+
+var errNotAllowedForRoom = errors.New("not allowed for this room")
 
 // Helper: return allowed room IDs for a user. Admins: nil means all.
 func (ec *ExitCodeController) allowedRoomIDsFor(user models.User) ([]uint, bool, error) {
@@ -40,8 +42,10 @@ func (ec *ExitCodeController) allowedRoomIDsFor(user models.User) ([]uint, bool,
 }
 
 type generateExitCodeRequest struct {
-    RoomID *uint `json:"room_id"` // optional for admin; required for pengawas
-    Length int   `json:"length"`  // optional length of code; default 6
+    RoomID      *uint  `json:"room_id"`        // required: determines which room's students are targeted
+    Length      int    `json:"length"`         // optional length of generated code; defaults to 6
+    StudentIDs  []uint `json:"student_ids"`    // optional list of specific students within the room
+    AllStudents bool   `json:"all_students"`   // when true, generate codes for every student in the room
 }
 
 func (ec *ExitCodeController) Generate(c *gin.Context) {
@@ -53,9 +57,17 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    codestr, err := utils.GenerateCode(req.Length)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate code"})
+
+    if req.RoomID == nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required"})
+        return
+    }
+    if !req.AllStudents && len(req.StudentIDs) == 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids is required unless all_students is true"})
+        return
+    }
+    if req.AllStudents && len(req.StudentIDs) > 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids must be empty when all_students is true"})
         return
     }
 
@@ -67,10 +79,6 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
 
     // Validate room permission for pengawas
     if !isAdmin {
-        if req.RoomID == nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required for pengawas"})
-            return
-        }
         permitted := false
         for _, rid := range allowedRooms {
             if rid == *req.RoomID {
@@ -84,21 +92,103 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
         }
     }
 
-    // If provided, ensure room exists
-    if req.RoomID != nil {
-        var room models.Room
-        if err := ec.DB.First(&room, *req.RoomID).Error; err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
+    // Ensure room exists
+    var room models.Room
+    if err := ec.DB.First(&room, *req.RoomID).Error; err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
+        return
+    }
+
+    var roomStudents []models.RoomStudent
+    if err := ec.DB.Where("room_id_ref = ?", *req.RoomID).Find(&roomStudents).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    studentInRoom := make(map[uint]struct{}, len(roomStudents))
+    for _, rs := range roomStudents {
+        studentInRoom[rs.UserIDRef] = struct{}{}
+    }
+
+    var targetStudentIDs []uint
+    if req.AllStudents {
+        for _, rs := range roomStudents {
+            targetStudentIDs = append(targetStudentIDs, rs.UserIDRef)
+        }
+    } else {
+        seen := make(map[uint]struct{}, len(req.StudentIDs))
+        for _, sid := range req.StudentIDs {
+            if sid == 0 {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids cannot contain zero"})
+                return
+            }
+            if _, ok := seen[sid]; ok {
+                continue
+            }
+            if _, ok := studentInRoom[sid]; !ok {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "student is not assigned to the specified room"})
+                return
+            }
+            seen[sid] = struct{}{}
+            targetStudentIDs = append(targetStudentIDs, sid)
+        }
+    }
+
+    if len(targetStudentIDs) == 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "no students found for code generation"})
+        return
+    }
+
+    // Sanity check: ensure all target users exist and have siswa role.
+    var students []models.User
+    if err := ec.DB.Where("id IN ?", targetStudentIDs).Find(&students).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    if len(students) != len(targetStudentIDs) {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "one or more students are invalid"})
+        return
+    }
+    for _, s := range students {
+        if strings.ToLower(s.Role) != "siswa" {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "exit code can only be generated for siswa users"})
             return
         }
     }
 
-    rec := models.ExitCode{
-        UserIDRef: uint(user.ID),
-        RoomIDRef: req.RoomID,
-        Code:      codestr,
-    }
-    if err := ec.DB.Create(&rec).Error; err != nil {
+    created := make([]models.ExitCode, 0, len(targetStudentIDs))
+    err = ec.DB.Transaction(func(tx *gorm.DB) error {
+        for _, studentID := range targetStudentIDs {
+            const maxAttempts = 5
+            var rec models.ExitCode
+            for attempt := 0; attempt < maxAttempts; attempt++ {
+                code, genErr := utils.GenerateCode(req.Length)
+                if genErr != nil {
+                    return genErr
+                }
+                rec = models.ExitCode{
+                    UserIDRef:         uint(user.ID),
+                    StudentUserIDRef:  studentID,
+                    RoomIDRef:         req.RoomID,
+                    Code:              code,
+                }
+                if err := tx.Create(&rec).Error; err != nil {
+                    var pgErr *pgconn.PgError
+                    if errors.As(err, &pgErr) && pgErr.Code == "23505" && attempt < maxAttempts-1 {
+                        continue
+                    }
+                    return err
+                }
+                break
+            }
+            if rec.ID == 0 {
+                return errors.New("failed to generate exit code")
+            }
+            created = append(created, rec)
+        }
+        return nil
+    })
+    if err != nil {
         var pgErr *pgconn.PgError
         if errors.As(err, &pgErr) && pgErr.Code == "23505" {
             c.JSON(http.StatusConflict, gin.H{"error": "code already exists, retry"})
@@ -108,12 +198,22 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
         return
     }
 
-    c.JSON(http.StatusCreated, gin.H{
-        "id":         rec.ID,
-        "code":       rec.Code,
-        "room_id":    rec.RoomIDRef,
-        "created_at": rec.CreatedAt,
-    })
+    out := make([]gin.H, 0, len(created))
+    for _, rec := range created {
+        item := gin.H{
+            "id":               rec.ID,
+            "code":             rec.Code,
+            "student_user_id":  rec.StudentUserIDRef,
+            "created_at":       rec.CreatedAt,
+            "created_by":       rec.UserIDRef,
+        }
+        if rec.RoomIDRef != nil {
+            item["room_id"] = *rec.RoomIDRef
+        }
+        out = append(out, item)
+    }
+
+    c.JSON(http.StatusCreated, gin.H{"data": out})
 }
 
 func (ec *ExitCodeController) List(c *gin.Context) {
@@ -140,10 +240,11 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         sortDir = "DESC"
     }
     allowedSorts := map[string]string{
-        "id":         "id",
-        "created_at": "created_at",
-        "used_at":    "used_at",
-        "code":       "code",
+        "id":                "id",
+        "created_at":        "created_at",
+        "used_at":           "used_at",
+        "code":              "code",
+        "student_user_id":   "student_user_id_ref",
     }
     sortCol, ok := allowedSorts[sortBy]
     if !ok {
@@ -177,6 +278,15 @@ func (ec *ExitCodeController) List(c *gin.Context) {
             return
         }
     }
+    if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
+        if studentID, err := strconv.Atoi(studentStr); err == nil && studentID > 0 {
+            base = base.Where("student_user_id_ref = ?", studentID)
+        } else {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student_user_id"})
+            return
+        }
+    }
+
     // used filter; default show only unused (used_at is NULL)
     used := strings.TrimSpace(strings.ToLower(c.DefaultQuery("used", "false")))
     switch used {
@@ -207,6 +317,11 @@ func (ec *ExitCodeController) List(c *gin.Context) {
             listQ = listQ.Where("room_id_ref = ?", roomID)
         }
     }
+    if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
+        if studentID, err := strconv.Atoi(studentStr); err == nil && studentID > 0 {
+            listQ = listQ.Where("student_user_id_ref = ?", studentID)
+        }
+    }
     switch used {
     case "true", "1":
         listQ = listQ.Where("used_at IS NOT NULL")
@@ -229,19 +344,20 @@ func (ec *ExitCodeController) List(c *gin.Context) {
     out := make([]gin.H, 0, len(items))
     for _, e := range items {
         out = append(out, gin.H{
-            "id":         e.ID,
-            "room_id":    e.RoomIDRef,
-            "code":       e.Code,
-            "used_at":    e.UsedAt,
-            "created_at": e.CreatedAt,
-            "created_by": e.UserIDRef,
+            "id":              e.ID,
+            "room_id":         e.RoomIDRef,
+            "student_user_id": e.StudentUserIDRef,
+            "code":            e.Code,
+            "used_at":         e.UsedAt,
+            "created_at":      e.CreatedAt,
+            "created_by":      e.UserIDRef,
         })
     }
     meta := gin.H{"total": total, "all": all}
     if !all {
         meta["limit"] = limit
         meta["page"] = page
-        meta["sort_by"] = sortCol
+        meta["sort_by"] = sortBy
         meta["sort_dir"] = sortDir
     }
     c.JSON(http.StatusOK, gin.H{"data": out, "meta": meta})
@@ -296,34 +412,78 @@ func (ec *ExitCodeController) Revoke(c *gin.Context) {
 
 // Consume marks a code as used (single-use). If already used, returns 409.
 type consumeRequest struct {
-    Code   string `json:"code" binding:"required"`
-    RoomID *uint  `json:"room_id"`
+    Code          string `json:"code" binding:"required"`
+    RoomID        *uint  `json:"room_id"`
+    StudentUserID *uint  `json:"student_user_id"`
 }
 
 func (ec *ExitCodeController) Consume(c *gin.Context) {
     // Optional: if siswa memanggil endpoint ini, setelah berhasil konsumsi kode,
     // status akan di-set ke locked=false (keluar dari mode terkunci)
+    uVal, _ := c.Get("user")
+    user := uVal.(models.User)
+
     var req consumeRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
+
+    role := strings.ToLower(user.Role)
+    var targetStudentID uint
+    switch role {
+    case "siswa":
+        targetStudentID = uint(user.ID)
+        if req.StudentUserID != nil && *req.StudentUserID != targetStudentID {
+            c.JSON(http.StatusForbidden, gin.H{"error": "cannot consume code for another student"})
+            return
+        }
+    default:
+        if req.StudentUserID == nil || *req.StudentUserID == 0 {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "student_user_id is required"})
+            return
+        }
+        targetStudentID = *req.StudentUserID
+    }
+
     now := time.Now().UTC()
 
-    err := ec.DB.Transaction(func(tx *gorm.DB) error {
-        var rec models.ExitCode
-        q := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("code = ? AND used_at IS NULL", req.Code)
+    allowedRooms, isAdmin, err := ec.allowedRoomIDsFor(user)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    var consumed models.ExitCode
+    err = ec.DB.Transaction(func(tx *gorm.DB) error {
+        q := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+            Where("code = ? AND used_at IS NULL AND student_user_id_ref = ?", req.Code, targetStudentID)
         if req.RoomID != nil {
-            q = q.Where("(room_id_ref = ?)", *req.RoomID)
+            q = q.Where("room_id_ref = ?", *req.RoomID)
         }
-        if err := q.First(&rec).Error; err != nil {
-            if errors.Is(err, gorm.ErrRecordNotFound) {
-                return err
-            }
+        if err := q.First(&consumed).Error; err != nil {
             return err
         }
-        rec.UsedAt = &now
-        if err := tx.Save(&rec).Error; err != nil {
+        if role == "pengawas" {
+            if consumed.RoomIDRef == nil {
+                return errNotAllowedForRoom
+            }
+            permitted := false
+            for _, rid := range allowedRooms {
+                if rid == *consumed.RoomIDRef {
+                    permitted = true
+                    break
+                }
+            }
+            if !permitted {
+                return errNotAllowedForRoom
+            }
+        }
+        if !isAdmin && role != "pengawas" && role != "siswa" {
+            return errNotAllowedForRoom
+        }
+        consumed.UsedAt = &now
+        if err := tx.Save(&consumed).Error; err != nil {
             return err
         }
         return nil
@@ -333,23 +493,24 @@ func (ec *ExitCodeController) Consume(c *gin.Context) {
             c.JSON(http.StatusConflict, gin.H{"error": "code not found or already used"})
             return
         }
+        if errors.Is(err, errNotAllowedForRoom) {
+            c.JSON(http.StatusForbidden, gin.H{"error": errNotAllowedForRoom.Error()})
+            return
+        }
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
     // Jika pemanggil adalah siswa, set status locked=false
-    if uVal, ok := c.Get("user"); ok {
-        user := uVal.(models.User)
-        if strings.ToLower(user.Role) == "siswa" {
-            var st models.StudentStatus
-            if err := ec.DB.Where("user_id_ref = ?", user.ID).First(&st).Error; err != nil {
-                if errors.Is(err, gorm.ErrRecordNotFound) {
-                    st = models.StudentStatus{UserIDRef: user.ID, Locked: false}
-                    _ = ec.DB.Create(&st).Error
-                }
-            } else {
-                st.Locked = false
-                _ = ec.DB.Save(&st).Error
+    if role == "siswa" {
+        var st models.StudentStatus
+        if err := ec.DB.Where("user_id_ref = ?", user.ID).First(&st).Error; err != nil {
+            if errors.Is(err, gorm.ErrRecordNotFound) {
+                st = models.StudentStatus{UserIDRef: user.ID, Locked: false}
+                _ = ec.DB.Create(&st).Error
             }
+        } else {
+            st.Locked = false
+            _ = ec.DB.Save(&st).Error
         }
     }
     c.JSON(http.StatusOK, gin.H{"message": "consumed"})

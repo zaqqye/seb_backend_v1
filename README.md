@@ -46,18 +46,20 @@
 - `GET /api/v1/sdui/auth/screens/:name`  — requires auth; role-aware screens
 - `GET /api/v1/config/public`            — public remote config
 - `GET /api/v1/config`                   — requires auth; role-aware flags
-
   Exit Codes (admin + pengawas):
-- `POST /api/v1/exit-codes/generate` — generate single-use exit code. Body:
-  - `room_id` (required for pengawas; optional for admin)
+- `POST /api/v1/exit-codes/generate` - generate single-use exit codes per siswa. Body:
+  - `room_id` (required; pengawas hanya bisa untuk ruangan yang diawasi)
+  - `student_ids` (optional array) - generate kode hanya untuk siswa tertentu di ruangan tersebut
+  - `all_students` (bool, optional) - jika `true`, generate kode untuk seluruh siswa di ruangan; tidak boleh bersamaan dengan `student_ids`
   - `length` (optional, default 6)
-- `GET  /api/v1/exit-codes` — list exit codes with query params:
-  - `limit`, `page`, `all`, `sort_by` (id, created_at, used_at, code), `sort_dir`
-  - `room_id` — filter by room
-  - `used` — `true|false|all` (default `false`, only unused codes)
+- `GET  /api/v1/exit-codes` - list exit codes with query params:
+  - `limit`, `page`, `all`, `sort_by` (id, created_at, used_at, code, student_user_id), `sort_dir`
+  - `room_id` atau `student_user_id` untuk filter tambahan
+  - `used` - `true|false|all` (default `false`, hanya kode yang belum dipakai)
   - pengawas hanya melihat data untuk ruangan yang diawasi
-- `POST /api/v1/exit-codes/:id/revoke` — revoke (mark as used now)
-- `POST /api/v1/exit-codes/consume`    — consume code (single-use)
+- `POST /api/v1/exit-codes/:id/revoke` - revoke (mark as used now)
+- `POST /api/v1/exit-codes/consume`    - konsumsi kode (siswa otomatis memakai kode miliknya; admin/pengawas wajib menyertakan `student_user_id` saat diperlukan)
+
 
   Rooms List Pagination/Sort/Filter
 - `GET /api/v1/admin/rooms` supports query params:
@@ -103,16 +105,18 @@
   - `role` — filter by role (`admin|pengawas|siswa`)
   - `active` — `true|false|1|0`
   Exit Codes (admin + pengawas):
-- `POST /api/v1/exit-codes/generate` — generate exit code. Body:
-  - `room_id` (required for pengawas; optional for admin)
+- `POST /api/v1/exit-codes/generate` - generate single-use exit codes per siswa. Body:
+  - `room_id` (required; pengawas hanya bisa untuk ruangan yang diawasi)
+  - `student_ids` (optional array) - generate kode hanya untuk siswa tertentu di ruangan tersebut
+  - `all_students` (bool, optional) - jika `true`, generate kode untuk seluruh siswa di ruangan; tidak boleh bersamaan dengan `student_ids`
   - `length` (optional, default 6)
-- `GET  /api/v1/exit-codes` — list exit codes with query params:
-  - `limit`, `page`, `all`, `sort_by` (id, created_at, used_at, code), `sort_dir`
-  - `room_id` — filter by room
-  - `used` — `true|false|all` (default `false`, only unused)
+- `GET  /api/v1/exit-codes` - list exit codes with query params:
+  - `limit`, `page`, `all`, `sort_by` (id, created_at, used_at, code, student_user_id), `sort_dir`
+  - `room_id` atau `student_user_id` untuk filter tambahan
+  - `used` - `true|false|all` (default `false`, hanya kode yang belum dipakai)
   - pengawas hanya melihat data untuk ruangan yang diawasi
-- `POST /api/v1/exit-codes/:id/revoke` — revoke (mark as used now)
-
+- `POST /api/v1/exit-codes/:id/revoke` - revoke (mark as used now)
+- `POST /api/v1/exit-codes/consume`    - konsumsi kode (siswa otomatis memakai kode miliknya; admin/pengawas wajib menyertakan `student_user_id` saat diperlukan)
 - Exit codes: `code` unique. Revoke sets `used_at` to now.
  
   Monitoring (admin + pengawas):
@@ -126,6 +130,7 @@
 
 **Notes (Exit Codes)**
 - Pengawas hanya boleh generate/list/revoke untuk `room_id` yang menjadi pengawasnya.
-- Admin boleh untuk semua ruangan dan juga tanpa `room_id` (global code).
+- Admin dapat generate kode untuk semua ruangan, namun tetap wajib memilih `room_id`; setiap kode melekat pada `student_user_id` tertentu.
+- Setiap exit code hanya berlaku untuk siswa yang ditunjuk (single-use).
 - Mapping pengawas ke ruangan menggunakan tabel `room_supervisors` (dikelola admin atau via DB).
 \n
