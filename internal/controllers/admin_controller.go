@@ -1,12 +1,16 @@
 package controllers
 
 import (
+    "encoding/csv"
+    "errors"
     "fmt"
+    "io"
     "net/http"
     "strconv"
     "strings"
 
     "github.com/gin-gonic/gin"
+    "github.com/google/uuid"
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
@@ -15,6 +19,194 @@ import (
 
 type AdminController struct {
     DB *gorm.DB
+}
+
+type userImportError struct {
+    Row   int    `json:"row"`
+    Email string `json:"email,omitempty"`
+    Error string `json:"error"`
+}
+
+func parseBoolDefaultTrue(val string) (bool, bool) {
+    if val == "" {
+        return true, false
+    }
+    switch strings.ToLower(strings.TrimSpace(val)) {
+    case "true", "1", "yes", "y", "aktif":
+        return true, true
+    case "false", "0", "no", "n", "nonaktif", "inactive":
+        return false, true
+    default:
+        return true, false
+    }
+}
+
+// ImportUsers allows admin to bulk-create users from a CSV file.
+// Expected header columns (case-insensitive):
+// full_name, email, password, role (optional), kelas (optional), jurusan (optional), active (optional)
+func (a *AdminController) ImportUsers(c *gin.Context) {
+    // Limit max upload size (10MB) to avoid accidental huge files.
+    if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse form"})
+        return
+    }
+    file, _, err := c.Request.FormFile("file")
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+        return
+    }
+    defer file.Close()
+
+    reader := csv.NewReader(file)
+    reader.TrimLeadingSpace = true
+    header, err := reader.Read()
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read header"})
+        return
+    }
+
+    headerIdx := make(map[string]int, len(header))
+    for idx, col := range header {
+        key := strings.ToLower(strings.TrimSpace(col))
+        if key != "" {
+            headerIdx[key] = idx
+        }
+    }
+
+    required := []string{"full_name", "email", "password"}
+    for _, key := range required {
+        if _, ok := headerIdx[key]; !ok {
+            c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("missing header column: %s", key)})
+            return
+        }
+    }
+
+    getVal := func(record []string, key string) string {
+        idx, ok := headerIdx[key]
+        if !ok || idx >= len(record) {
+            return ""
+        }
+        return strings.TrimSpace(record[idx])
+    }
+
+    var (
+        totalRows   int
+        createdRows int
+        failures    []userImportError
+    )
+
+    rowNum := 1 // already consumed header line
+    for {
+        row, err := reader.Read()
+        if err == io.EOF {
+            break
+        }
+        if err != nil {
+            failures = append(failures, userImportError{
+                Row:   rowNum + 1,
+                Error: fmt.Sprintf("failed to read row: %v", err),
+            })
+            continue
+        }
+        rowNum++
+        totalRows++
+
+        fullName := getVal(row, "full_name")
+        email := strings.ToLower(getVal(row, "email"))
+        password := getVal(row, "password")
+        role := strings.ToLower(getVal(row, "role"))
+        kelas := getVal(row, "kelas")
+        jurusan := getVal(row, "jurusan")
+        activeStr := getVal(row, "active")
+
+        if fullName == "" || email == "" || password == "" {
+            failures = append(failures, userImportError{
+                Row:   rowNum,
+                Email: email,
+                Error: "full_name, email, and password are required",
+            })
+            continue
+        }
+
+        if role == "" {
+            role = "siswa"
+        }
+        if !IsValidRole(role) {
+            failures = append(failures, userImportError{
+                Row:   rowNum,
+                Email: email,
+                Error: "invalid role",
+            })
+            continue
+        }
+
+        activeVal, provided := parseBoolDefaultTrue(activeStr)
+        if activeStr != "" && !provided {
+            failures = append(failures, userImportError{
+                Row:   rowNum,
+                Email: email,
+                Error: "invalid active value",
+            })
+            continue
+        }
+
+        if existingErr := a.DB.Where("email = ?", email).First(&models.User{}).Error; existingErr == nil {
+            failures = append(failures, userImportError{
+                Row:   rowNum,
+                Email: email,
+                Error: "email already exists",
+            })
+            continue
+        } else if !errors.Is(existingErr, gorm.ErrRecordNotFound) {
+            failures = append(failures, userImportError{
+                Row:   rowNum,
+                Email: email,
+                Error: fmt.Sprintf("failed to check existing user: %v", existingErr),
+            })
+            continue
+        }
+
+        hashed, hashErr := utils.HashPassword(password)
+        if hashErr != nil {
+            failures = append(failures, userImportError{
+                Row:   rowNum,
+                Email: email,
+                Error: fmt.Sprintf("failed to hash password: %v", hashErr),
+            })
+            continue
+        }
+
+        user := models.User{
+            UserID:   uuid.NewString(),
+            FullName: fullName,
+            Email:    email,
+            Password: hashed,
+            Role:     role,
+            Kelas:    kelas,
+            Jurusan:  jurusan,
+            Active:   activeVal,
+        }
+
+        if err := a.DB.Create(&user).Error; err != nil {
+            failures = append(failures, userImportError{
+                Row:   rowNum,
+                Email: email,
+                Error: fmt.Sprintf("failed to insert user: %v", err),
+            })
+            continue
+        }
+
+        createdRows++
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "summary": gin.H{
+            "total_rows": totalRows,
+            "inserted":   createdRows,
+            "failed":     len(failures),
+        },
+        "errors": failures,
+    })
 }
 
 func (a *AdminController) ListUsers(c *gin.Context) {

@@ -72,6 +72,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
             admin.GET("/users/:user_id", adminCtrl.GetUser)
             admin.PUT("/users/:user_id", adminCtrl.UpdateUser)
             admin.DELETE("/users/:user_id", adminCtrl.DeleteUser)
+            admin.POST("/users/import", adminCtrl.ImportUsers)
 
             // Rooms (Kelas) CRUD
             admin.GET("/rooms", roomCtrl.ListRooms)

@@ -15,6 +15,7 @@
 - `POST /api/v1/auth/logout`        — requires auth, stateless logout (client should discard token).
 - `GET  /api/v1/admin/users`        — admin only, list users.
 - `POST /api/v1/admin/users`        — admin only, create user (register). Body supports `role` and `active`.
+- `POST /api/v1/admin/users/import` — admin only, import user CSV (multipart `file` field).
 - `GET  /api/v1/admin/users/:user_id`   — admin only, get one user.
 - `PUT  /api/v1/admin/users/:user_id`   — admin only, update user (partial supported).
 - `DELETE /api/v1/admin/users/:user_id` — admin only, delete user.
@@ -93,6 +94,7 @@
 **Notes**
 - On first run, the server auto-migrates the `users` table.
 - Admin manages registration via `POST /api/v1/admin/users`. If `role` is omitted, defaults to `siswa`. `active` defaults to `true`.
+- Admin dapat melakukan import massal via `POST /api/v1/admin/users/import` dengan mengunggah file CSV pada field `file`.
 - If you see a Postgres error like `simple protocol queries must be run with client_encoding=UTF8`, ensure your Postgres instance supports UTF8 client encoding. The DSN in code sets `client_encoding=UTF8`; alternatively set env `PGCLIENTENCODING=UTF8`.
 
 **Admin List Users Pagination/Sort/Filter**
@@ -104,6 +106,15 @@
   - `q` (search) — ILIKE on `full_name` or `email`
   - `role` — filter by role (`admin|pengawas|siswa`)
   - `active` — `true|false|1|0`
+
+**Admin User Import (CSV)**
+- Endpoint: `POST /api/v1/admin/users/import` (multipart).
+- Form field `file` berisi CSV dengan header minimal: `full_name,email,password`.
+- Kolom opsional: `role`, `kelas`, `jurusan`, `active` (`true|false|1|0|yes|no`).
+- Role default `siswa` bila kosong; hanya menerima `admin|pengawas|siswa`.
+- Nilai `active` default `true` jika kolom dikosongkan.
+- Respons berisi ringkasan jumlah baris berhasil/gagal beserta daftar error per baris.
+
   Exit Codes (admin + pengawas):
 - `POST /api/v1/exit-codes/generate` - generate single-use exit codes per siswa. Body:
   - `room_id` (required; pengawas hanya bisa untuk ruangan yang diawasi)
