@@ -1,8 +1,6 @@
 package config
 
-import (
-    "os"
-)
+import "os"
 
 type Config struct {
     Port         string
@@ -30,32 +28,39 @@ type Config struct {
 
 func Load() *Config {
     return &Config{
-        Port:         getenv("PORT", "8080"),
-        DBHost:       getenv("DB_HOST", "localhost"),
-        DBPort:       getenv("DB_PORT", "5432"),
-        DBUser:       getenv("DB_USER", "postgres"),
-        DBPassword:   getenv("DB_PASSWORD", "postgres"),
-        DBName:       getenv("DB_NAME", "seb_db"),
-        DBSSLMode:    getenv("DB_SSLMODE", "disable"),
-        JWTSecret:    getenv("JWT_SECRET", "supersecret_change_me"),
-        JWTExpiresIn: getenv("JWT_EXPIRES_IN", "60"),
-        AdminEmail:    getenv("ADMIN_EMAIL", "admin@example.com"),
-        AdminPassword: getenv("ADMIN_PASSWORD", "admin123"),
-        AdminFullName: getenv("ADMIN_FULL_NAME", "Administrator"),
-        LayoutVersion:        getenv("LAYOUT_VERSION", "1"),
-        MinAppVersionAndroid: getenv("MIN_APP_VERSION_ANDROID", "1"),
-        MinAppVersionIOS:     getenv("MIN_APP_VERSION_IOS", "1"),
-        SDUIHMACSecret:       getenv("SDUI_HMAC_SECRET", ""),
-        AccessTokenTTLMinutes: getenv("ACCESS_TOKEN_TTL_MINUTES", getenv("JWT_EXPIRES_IN", "15")),
-        RefreshTokenTTLDays:   getenv("REFRESH_TOKEN_TTL_DAYS", "30"),
-        RefreshJWTSecret:      getenv("REFRESH_JWT_SECRET", getenv("JWT_SECRET", "supersecret_change_me")),
+        Port:                 os.Getenv("PORT"),
+        DBHost:               os.Getenv("DB_HOST"),
+        DBPort:               os.Getenv("DB_PORT"),
+        DBUser:               os.Getenv("DB_USER"),
+        DBPassword:           os.Getenv("DB_PASSWORD"),
+        DBName:               os.Getenv("DB_NAME"),
+        DBSSLMode:            os.Getenv("DB_SSLMODE"),
+        JWTSecret:            os.Getenv("JWT_SECRET"),
+        JWTExpiresIn:         os.Getenv("JWT_EXPIRES_IN"),
+        AdminEmail:           os.Getenv("ADMIN_EMAIL"),
+        AdminPassword:        os.Getenv("ADMIN_PASSWORD"),
+        AdminFullName:        os.Getenv("ADMIN_FULL_NAME"),
+        LayoutVersion:        os.Getenv("LAYOUT_VERSION"),
+        MinAppVersionAndroid: os.Getenv("MIN_APP_VERSION_ANDROID"),
+        MinAppVersionIOS:     os.Getenv("MIN_APP_VERSION_IOS"),
+        SDUIHMACSecret:       os.Getenv("SDUI_HMAC_SECRET"),
+        AccessTokenTTLMinutes: firstNonEmpty(
+            os.Getenv("ACCESS_TOKEN_TTL_MINUTES"),
+            os.Getenv("JWT_EXPIRES_IN"),
+        ),
+        RefreshTokenTTLDays: os.Getenv("REFRESH_TOKEN_TTL_DAYS"),
+        RefreshJWTSecret: firstNonEmpty(
+            os.Getenv("REFRESH_JWT_SECRET"),
+            os.Getenv("JWT_SECRET"),
+        ),
     }
 }
 
-func getenv(key, fallback string) string {
-    v := os.Getenv(key)
-    if v == "" {
-        return fallback
+func firstNonEmpty(values ...string) string {
+    for _, v := range values {
+        if v != "" {
+            return v
+        }
     }
-    return v
+    return ""
 }
