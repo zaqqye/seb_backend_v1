@@ -159,6 +159,19 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
     created := make([]models.ExitCode, 0, len(targetStudentIDs))
     err = ec.DB.Transaction(func(tx *gorm.DB) error {
         for _, studentID := range targetStudentIDs {
+            // Mark previous unused codes for this student (same room context) as used
+            now := time.Now().UTC()
+            markQ := tx.Model(&models.ExitCode{}).
+                Where("student_user_id_ref = ? AND used_at IS NULL", studentID)
+            if req.RoomID != nil {
+                markQ = markQ.Where("room_id_ref = ?", *req.RoomID)
+            } else {
+                markQ = markQ.Where("room_id_ref IS NULL")
+            }
+            if err := markQ.Update("used_at", now).Error; err != nil {
+                return err
+            }
+
             const maxAttempts = 5
             var rec models.ExitCode
             for attempt := 0; attempt < maxAttempts; attempt++ {
@@ -167,10 +180,10 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
                     return genErr
                 }
                 rec = models.ExitCode{
-                    UserIDRef:         uint(user.ID),
-                    StudentUserIDRef:  studentID,
-                    RoomIDRef:         req.RoomID,
-                    Code:              code,
+                    UserIDRef:        uint(user.ID),
+                    StudentUserIDRef: studentID,
+                    RoomIDRef:        req.RoomID,
+                    Code:             code,
                 }
                 if err := tx.Create(&rec).Error; err != nil {
                     var pgErr *pgconn.PgError
