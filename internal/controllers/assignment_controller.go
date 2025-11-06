@@ -17,7 +17,7 @@ type AssignmentController struct {
 }
 
 type assignRequest struct {
-    UserID string `json:"user_id" binding:"required"`
+    UserID uint `json:"user_id" binding:"required"`
 }
 
 // AssignSupervisor assigns a pengawas user to a room
@@ -39,14 +39,8 @@ func (ac *AssignmentController) AssignSupervisor(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    userIDStr := strings.TrimSpace(req.UserID)
-    userID, err := strconv.Atoi(userIDStr)
-    if err != nil || userID <= 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
-        return
-    }
     var user models.User
-    if err := ac.DB.First(&user, userID).Error; err != nil {
+    if err := ac.DB.First(&user, req.UserID).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
         return
     }
@@ -98,14 +92,8 @@ func (ac *AssignmentController) AssignStudent(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    userIDStr := strings.TrimSpace(req.UserID)
-    userID, err := strconv.Atoi(userIDStr)
-    if err != nil || userID <= 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
-        return
-    }
     var user models.User
-    if err := ac.DB.First(&user, userID).Error; err != nil {
+    if err := ac.DB.First(&user, req.UserID).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
         return
     }
