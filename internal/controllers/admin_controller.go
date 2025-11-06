@@ -308,9 +308,56 @@ func (a *AdminController) ListUsers(c *gin.Context) {
         return
     }
 
+    userIDs := make([]uint, 0, len(users))
+    for _, u := range users {
+        userIDs = append(userIDs, u.ID)
+    }
+
+    type roomRow struct {
+        UserID   uint
+        RoomID   uint
+        RoomName string
+    }
+    studentRooms := make(map[uint]roomRow)
+    supervisorRooms := make(map[uint]roomRow)
+
+    if len(userIDs) > 0 {
+        var studentRows []roomRow
+        if err := a.DB.Table("room_students AS rs").
+            Select("rs.user_id_ref AS user_id, r.id AS room_id, r.name AS room_name").
+            Joins("JOIN rooms r ON r.id = rs.room_id_ref").
+            Where("rs.user_id_ref IN ?", userIDs).
+            Order("rs.created_at ASC").
+            Scan(&studentRows).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+        for _, row := range studentRows {
+            if _, exists := studentRooms[row.UserID]; !exists {
+                studentRooms[row.UserID] = row
+            }
+        }
+
+        var supervisorRows []roomRow
+        if err := a.DB.Table("room_supervisors AS rs").
+            Select("rs.user_id_ref AS user_id, r.id AS room_id, r.name AS room_name").
+            Joins("JOIN rooms r ON r.id = rs.room_id_ref").
+            Where("rs.user_id_ref IN ?", userIDs).
+            Order("rs.created_at ASC").
+            Scan(&supervisorRows).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+        for _, row := range supervisorRows {
+            if _, exists := supervisorRooms[row.UserID]; !exists {
+                supervisorRooms[row.UserID] = row
+            }
+        }
+    }
+
     out := make([]gin.H, 0, len(users))
     for _, u := range users {
-        out = append(out, gin.H{
+        entry := gin.H{
             "id":         u.ID,
             "user_id":    u.UserID,
             "full_name":  u.FullName,
@@ -321,7 +368,26 @@ func (a *AdminController) ListUsers(c *gin.Context) {
             "active":     u.Active,
             "created_at": u.CreatedAt,
             "updated_at": u.UpdatedAt,
-        })
+        }
+        var room interface{}
+        switch strings.ToLower(u.Role) {
+        case "siswa":
+            if r, ok := studentRooms[u.ID]; ok {
+                room = gin.H{"id": r.RoomID, "name": r.RoomName}
+            }
+        case "pengawas":
+            if r, ok := supervisorRooms[u.ID]; ok {
+                room = gin.H{"id": r.RoomID, "name": r.RoomName}
+            }
+        default:
+            if r, ok := studentRooms[u.ID]; ok {
+                room = gin.H{"id": r.RoomID, "name": r.RoomName}
+            } else if r, ok := supervisorRooms[u.ID]; ok {
+                room = gin.H{"id": r.RoomID, "name": r.RoomName}
+            }
+        }
+        entry["room"] = room
+        out = append(out, entry)
     }
     meta := gin.H{"total": total, "all": all}
     if !all {
