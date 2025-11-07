@@ -9,9 +9,9 @@ import (
 
 type ExitCode struct {
     ID               string     `gorm:"type:uuid;primaryKey"`
-    UserIDRef        string
-    StudentUserIDRef string     `gorm:"index"`
-    RoomIDRef        *string
+    UserIDRef        string     `gorm:"type:uuid"`
+    StudentUserIDRef string     `gorm:"type:uuid;index"`
+    RoomIDRef        *string    `gorm:"type:uuid"`
     Code             string     `gorm:"uniqueIndex"`
     UsedAt           *time.Time `gorm:"index"`
     CreatedAt        time.Time
@@ -28,8 +28,8 @@ func (e *ExitCode) BeforeCreate(tx *gorm.DB) (err error) {
 // Admins are allowed everywhere by role; this mapping is primarily for pengawas scope.
 type RoomSupervisor struct {
     ID        string    `gorm:"type:uuid;primaryKey"`
-    UserIDRef string    `gorm:"uniqueIndex:uniq_user_room"`
-    RoomIDRef string    `gorm:"uniqueIndex:uniq_user_room"`
+    UserIDRef string    `gorm:"type:uuid;uniqueIndex:uniq_user_room"`
+    RoomIDRef string    `gorm:"type:uuid;uniqueIndex:uniq_user_room"`
     CreatedAt time.Time
 }
 
@@ -43,8 +43,8 @@ func (rs *RoomSupervisor) BeforeCreate(tx *gorm.DB) (err error) {
 // RoomStudent maps a siswa user to rooms they belong to.
 type RoomStudent struct {
     ID        string    `gorm:"type:uuid;primaryKey"`
-    UserIDRef string    `gorm:"uniqueIndex:uniq_student_room"`
-    RoomIDRef string    `gorm:"uniqueIndex:uniq_student_room"`
+    UserIDRef string    `gorm:"type:uuid;uniqueIndex:uniq_student_room"`
+    RoomIDRef string    `gorm:"type:uuid;uniqueIndex:uniq_student_room"`
     CreatedAt time.Time
 }
 

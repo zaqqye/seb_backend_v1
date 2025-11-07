@@ -10,7 +10,7 @@ import (
 type RefreshToken struct {
     ID               string    `gorm:"type:uuid;primaryKey"`
     TokenID          string    `gorm:"index"` // jti
-    UserIDRef        string    `gorm:"index"`
+    UserIDRef        string    `gorm:"type:uuid;index"`
     TokenHash        string    `gorm:"uniqueIndex"`
     ExpiresAt        time.Time `gorm:"index"`
     RevokedAt        *time.Time

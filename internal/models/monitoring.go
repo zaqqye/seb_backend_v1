@@ -11,7 +11,7 @@ import (
 // One row per siswa user.
 type StudentStatus struct {
     ID              string     `gorm:"type:uuid;primaryKey"`
-    UserIDRef       string     `gorm:"uniqueIndex"`
+    UserIDRef       string     `gorm:"type:uuid;uniqueIndex"`
     AppVersion      string     `gorm:"size:64"`
     Locked          bool       `gorm:"index"`
     BlockedFromExam bool       `gorm:"index"`
