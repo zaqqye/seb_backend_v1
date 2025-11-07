@@ -10,7 +10,6 @@ import (
     "strings"
 
     "github.com/gin-gonic/gin"
-    "github.com/google/uuid"
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
@@ -311,12 +310,10 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     for _, u := range users {
         userIDs = append(userIDs, u.ID)
     }
-    uuidUserIDs := make([]uuid.UUID, 0, len(userIDs))
-    for _, idStr := range userIDs {
-        id, err := uuid.Parse(idStr)
-        if err == nil {
-            uuidUserIDs = append(uuidUserIDs, id)
-        }
+    uuidUserIDs, err := toUUIDSlice(userIDs)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
     }
 
     type roomRow struct {
