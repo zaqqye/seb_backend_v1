@@ -37,9 +37,9 @@
 - `DELETE /api/v1/admin/majors/:id`   — delete major
 
   Assignments (admin-only):
-- `POST   /api/v1/admin/rooms/:id/supervisors`          - assign pengawas to room (body: `user_id`)
+- `POST   /api/v1/admin/rooms/:id/supervisors`          - assign pengawas to room (body: `user_id` UUID string)
 - `DELETE /api/v1/admin/rooms/:id/supervisors/:user_id` - unassign pengawas from room
-- `POST   /api/v1/admin/rooms/:id/students`             - assign siswa to room (body: `user_id`)
+- `POST   /api/v1/admin/rooms/:id/students`             - assign siswa to room (body: `user_id` UUID string)
 - `DELETE /api/v1/admin/rooms/:id/students/:user_id`    - unassign siswa from room
 
   SDUI & Remote Config:
@@ -94,6 +94,7 @@
 **Notes**
 - On first run, the server auto-migrates the `users` table.
 - Admin manages registration via `POST /api/v1/admin/users`. If `role` is omitted, defaults to `siswa`. `active` defaults to `true`.
+- Seluruh ID user kini berupa UUID string; parameter/path `user_id` pada endpoint admin merujuk langsung ke nilai `id` tersebut.
 - Admin dapat melakukan import massal via `POST /api/v1/admin/users/import` dengan mengunggah file CSV pada field `file`.
 - If you see a Postgres error like `simple protocol queries must be run with client_encoding=UTF8`, ensure your Postgres instance supports UTF8 client encoding. The DSN in code sets `client_encoding=UTF8`; alternatively set env `PGCLIENTENCODING=UTF8`.
 

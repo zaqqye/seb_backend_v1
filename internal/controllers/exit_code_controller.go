@@ -44,7 +44,7 @@ func (ec *ExitCodeController) allowedRoomIDsFor(user models.User) ([]uint, bool,
 type generateExitCodeRequest struct {
     RoomID      *uint  `json:"room_id"`        // required: determines which room's students are targeted
     Length      int    `json:"length"`         // optional length of generated code; defaults to 6
-    StudentIDs  []uint `json:"student_ids"`    // optional list of specific students within the room
+    StudentIDs  []string `json:"student_ids"`    // optional list of specific students within the room
     AllStudents bool   `json:"all_students"`   // when true, generate codes for every student in the room
 }
 
@@ -105,21 +105,22 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
         return
     }
 
-    studentInRoom := make(map[uint]struct{}, len(roomStudents))
+    studentInRoom := make(map[string]struct{}, len(roomStudents))
     for _, rs := range roomStudents {
         studentInRoom[rs.UserIDRef] = struct{}{}
     }
 
-    var targetStudentIDs []uint
+    var targetStudentIDs []string
     if req.AllStudents {
         for _, rs := range roomStudents {
             targetStudentIDs = append(targetStudentIDs, rs.UserIDRef)
         }
     } else {
-        seen := make(map[uint]struct{}, len(req.StudentIDs))
+        seen := make(map[string]struct{}, len(req.StudentIDs))
         for _, sid := range req.StudentIDs {
-            if sid == 0 {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids cannot contain zero"})
+            sid = strings.TrimSpace(sid)
+            if sid == "" {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids cannot contain blank values"})
                 return
             }
             if _, ok := seen[sid]; ok {
@@ -180,7 +181,7 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
                     return genErr
                 }
                 rec = models.ExitCode{
-                    UserIDRef:        uint(user.ID),
+                    UserIDRef:        user.ID,
                     StudentUserIDRef: studentID,
                     RoomIDRef:        req.RoomID,
                     Code:             code,
@@ -292,12 +293,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         }
     }
     if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
-        if studentID, err := strconv.Atoi(studentStr); err == nil && studentID > 0 {
-            base = base.Where("student_user_id_ref = ?", studentID)
-        } else {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student_user_id"})
-            return
-        }
+        base = base.Where("student_user_id_ref = ?", studentStr)
     }
 
     // used filter; default show only unused (used_at is NULL)
@@ -331,9 +327,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         }
     }
     if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
-        if studentID, err := strconv.Atoi(studentStr); err == nil && studentID > 0 {
-            listQ = listQ.Where("student_user_id_ref = ?", studentID)
-        }
+        listQ = listQ.Where("student_user_id_ref = ?", studentStr)
     }
     switch used {
     case "true", "1":
@@ -427,7 +421,7 @@ func (ec *ExitCodeController) Revoke(c *gin.Context) {
 type consumeRequest struct {
     Code          string `json:"code" binding:"required"`
     RoomID        *uint  `json:"room_id"`
-    StudentUserID *uint  `json:"student_user_id"`
+    StudentUserID *string  `json:"student_user_id"`
 }
 
 func (ec *ExitCodeController) Consume(c *gin.Context) {
@@ -443,20 +437,20 @@ func (ec *ExitCodeController) Consume(c *gin.Context) {
     }
 
     role := strings.ToLower(user.Role)
-    var targetStudentID uint
+    var targetStudentID string
     switch role {
     case "siswa":
-        targetStudentID = uint(user.ID)
-        if req.StudentUserID != nil && *req.StudentUserID != targetStudentID {
+        targetStudentID = user.ID
+        if req.StudentUserID != nil && strings.TrimSpace(*req.StudentUserID) != "" && strings.TrimSpace(*req.StudentUserID) != targetStudentID {
             c.JSON(http.StatusForbidden, gin.H{"error": "cannot consume code for another student"})
             return
         }
     default:
-        if req.StudentUserID == nil || *req.StudentUserID == 0 {
+        if req.StudentUserID == nil || strings.TrimSpace(*req.StudentUserID) == "" {
             c.JSON(http.StatusBadRequest, gin.H{"error": "student_user_id is required"})
             return
         }
-        targetStudentID = *req.StudentUserID
+        targetStudentID = strings.TrimSpace(*req.StudentUserID)
     }
 
     now := time.Now().UTC()

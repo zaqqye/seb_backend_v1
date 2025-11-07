@@ -67,7 +67,7 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
 
     // Base query from users (siswa only)
     type row struct {
-        UserID   uint      `json:"id"`
+        UserID   string    `json:"id"`
         FullName string    `json:"full_name"`
         Email    string    `json:"email"`
         Kelas    string    `json:"kelas"`
@@ -120,12 +120,11 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
 func (mc *MonitoringController) ForceLogout(c *gin.Context) {
     uVal, _ := c.Get("user")
     actor := uVal.(models.User)
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil || id <= 0 { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
+    idStr := strings.TrimSpace(c.Param("id"))
+    if idStr == "" { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
 
     var target models.User
-    if err := mc.DB.First(&target, id).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "user not found"}); return }
+    if err := mc.DB.Where("id = ?", idStr).First(&target).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "user not found"}); return }
     if strings.ToLower(target.Role) != "siswa" { c.JSON(http.StatusBadRequest, gin.H{"error": "target is not siswa"}); return }
 
     // Scope check for pengawas
@@ -155,12 +154,11 @@ func (mc *MonitoringController) ForceLogout(c *gin.Context) {
 func (mc *MonitoringController) AllowExam(c *gin.Context) {
     uVal, _ := c.Get("user")
     actor := uVal.(models.User)
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil || id <= 0 { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
+    idStr := strings.TrimSpace(c.Param("id"))
+    if idStr == "" { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
 
     var target models.User
-    if err := mc.DB.First(&target, id).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "user not found"}); return }
+    if err := mc.DB.Where("id = ?", idStr).First(&target).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "user not found"}); return }
     if strings.ToLower(target.Role) != "siswa" { c.JSON(http.StatusBadRequest, gin.H{"error": "target is not siswa"}); return }
 
     if actor.Role == "pengawas" {

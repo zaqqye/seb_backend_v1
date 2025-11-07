@@ -3,7 +3,6 @@ package database
 import (
     "log"
 
-    "github.com/google/uuid"
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/config"
@@ -38,7 +37,6 @@ func SeedAdmin(db *gorm.DB, cfg *config.Config) error {
     }
 
     admin := models.User{
-        UserID:   uuid.NewString(),
         FullName: fullName,
         Email:    email,
         Password: hashed,

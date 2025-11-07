@@ -2,11 +2,13 @@ package models
 
 import (
     "time"
+
+    "github.com/google/uuid"
+    "gorm.io/gorm"
 )
 
 type User struct {
-    ID        uint      `gorm:"primaryKey"`
-    UserID    string    `gorm:"uniqueIndex"`
+    ID        string    `gorm:"type:uuid;primaryKey"`
     FullName  string
     Email     string    `gorm:"uniqueIndex"`
     Password  string
@@ -18,3 +20,9 @@ type User struct {
     UpdatedAt time.Time
 }
 
+func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
+    if u.ID == "" {
+        u.ID = uuid.NewString()
+    }
+    return nil
+}

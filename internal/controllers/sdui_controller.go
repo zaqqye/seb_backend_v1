@@ -180,7 +180,7 @@ func applyUserPlaceholders(data []byte, u *models.User) []byte {
         "{{full_name}}", u.FullName,
         "{{email}}", u.Email,
         "{{role}}", u.Role,
-        "{{user_id}}", u.UserID,
+        "{{user_id}}", u.ID,
     )
     s = r.Replace(s)
     return []byte(s)

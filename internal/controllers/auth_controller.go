@@ -2,7 +2,6 @@ package controllers
 
 import (
     "net/http"
-    "strconv"
     "strings"
     "time"
 
@@ -78,7 +77,6 @@ func (a *AuthController) Register(c *gin.Context) {
     }
 
     user := models.User{
-        UserID:   uuid.NewString(),
         FullName: req.FullName,
         Email:    req.Email,
         Password: pw,
@@ -94,11 +92,11 @@ func (a *AuthController) Register(c *gin.Context) {
     }
 
     c.JSON(http.StatusCreated, gin.H{
-        "message":  "registered",
-        "user_id":  user.UserID,
-        "email":    user.Email,
+        "message":   "registered",
+        "user_id":   user.ID,
+        "email":     user.Email,
         "full_name": user.FullName,
-        "role":     user.Role,
+        "role":      user.Role,
     })
 }
 
@@ -139,7 +137,7 @@ func (a *AuthController) Me(c *gin.Context) {
     uVal, _ := c.Get("user")
     user := uVal.(models.User)
     c.JSON(http.StatusOK, gin.H{
-        "user_id":   user.UserID,
+        "user_id":   user.ID,
         "email":     user.Email,
         "full_name": user.FullName,
         "role":      user.Role,
@@ -158,10 +156,10 @@ type tokenPair struct {
 
 func (a *AuthController) issueTokens(user models.User) (access tokenPair, refresh tokenPair, err error) {
     now := time.Now().UTC()
-    sub := strconv.FormatUint(uint64(user.ID), 10)
+    sub := user.ID
     // Access token
     acl := middleware.Claims{
-        UserID: user.UserID,
+        UserID: user.ID,
         Role:   user.Role,
         Email:  user.Email,
         RegisteredClaims: jwt.RegisteredClaims{
@@ -231,7 +229,7 @@ func (a *AuthController) Refresh(c *gin.Context) {
         return
     }
     var user models.User
-    if err := a.DB.First(&user, rec.UserIDRef).Error; err != nil {
+    if err := a.DB.Where("id = ?", rec.UserIDRef).First(&user).Error; err != nil {
         c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
         return
     }

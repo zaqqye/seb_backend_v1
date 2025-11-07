@@ -10,7 +10,6 @@ import (
     "strings"
 
     "github.com/gin-gonic/gin"
-    "github.com/google/uuid"
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
@@ -177,7 +176,6 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
         }
 
         user := models.User{
-            UserID:   uuid.NewString(),
             FullName: fullName,
             Email:    email,
             Password: hashed,
@@ -308,18 +306,18 @@ func (a *AdminController) ListUsers(c *gin.Context) {
         return
     }
 
-    userIDs := make([]uint, 0, len(users))
+    userIDs := make([]string, 0, len(users))
     for _, u := range users {
         userIDs = append(userIDs, u.ID)
     }
 
     type roomRow struct {
-        UserID   uint
+        UserID   string
         RoomID   uint
         RoomName string
     }
-    studentRooms := make(map[uint]roomRow)
-    supervisorRooms := make(map[uint]roomRow)
+    studentRooms := make(map[string]roomRow)
+    supervisorRooms := make(map[string]roomRow)
 
     if len(userIDs) > 0 {
         var studentRows []roomRow
@@ -359,7 +357,7 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     for _, u := range users {
         entry := gin.H{
             "id":         u.ID,
-            "user_id":    u.UserID,
+            "user_id":    u.ID,
             "full_name":  u.FullName,
             "email":      u.Email,
             "role":       u.Role,
@@ -412,13 +410,13 @@ func (a *AdminController) ListUsers(c *gin.Context) {
 func (a *AdminController) GetUser(c *gin.Context) {
     userID := c.Param("user_id")
     var u models.User
-    if err := a.DB.Where("user_id = ?", userID).First(&u).Error; err != nil {
+    if err := a.DB.Where("id = ?", userID).First(&u).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
         return
     }
     c.JSON(http.StatusOK, gin.H{
         "id":         u.ID,
-        "user_id":    u.UserID,
+        "user_id":    u.ID,
         "full_name":  u.FullName,
         "email":      u.Email,
         "role":       u.Role,
@@ -443,7 +441,7 @@ type updateUserRequest struct {
 func (a *AdminController) UpdateUser(c *gin.Context) {
     userID := c.Param("user_id")
     var u models.User
-    if err := a.DB.Where("user_id = ?", userID).First(&u).Error; err != nil {
+    if err := a.DB.Where("id = ?", userID).First(&u).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
         return
     }
@@ -497,7 +495,7 @@ func (a *AdminController) UpdateUser(c *gin.Context) {
 
 func (a *AdminController) DeleteUser(c *gin.Context) {
     userID := c.Param("user_id")
-    if err := a.DB.Where("user_id = ?", userID).Delete(&models.User{}).Error; err != nil {
+    if err := a.DB.Where("id = ?", userID).Delete(&models.User{}).Error; err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }

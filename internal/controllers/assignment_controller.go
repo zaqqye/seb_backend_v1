@@ -17,7 +17,7 @@ type AssignmentController struct {
 }
 
 type assignRequest struct {
-    UserID uint `json:"user_id" binding:"required"`
+    UserID string `json:"user_id" binding:"required"`
 }
 
 // AssignSupervisor assigns a pengawas user to a room
@@ -40,7 +40,7 @@ func (ac *AssignmentController) AssignSupervisor(c *gin.Context) {
         return
     }
     var user models.User
-    if err := ac.DB.First(&user, req.UserID).Error; err != nil {
+    if err := ac.DB.Where("id = ?", strings.TrimSpace(req.UserID)).First(&user).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
         return
     }
@@ -63,8 +63,8 @@ func (ac *AssignmentController) UnassignSupervisor(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
     }
-    userID, err := strconv.Atoi(c.Param("user_id"))
-    if err != nil || userID <= 0 {
+    userID := strings.TrimSpace(c.Param("user_id"))
+    if userID == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
         return
     }
@@ -93,7 +93,7 @@ func (ac *AssignmentController) AssignStudent(c *gin.Context) {
         return
     }
     var user models.User
-    if err := ac.DB.First(&user, req.UserID).Error; err != nil {
+    if err := ac.DB.Where("id = ?", strings.TrimSpace(req.UserID)).First(&user).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
         return
     }
@@ -116,8 +116,8 @@ func (ac *AssignmentController) UnassignStudent(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
     }
-    userID, err := strconv.Atoi(c.Param("user_id"))
-    if err != nil || userID <= 0 {
+    userID := strings.TrimSpace(c.Param("user_id"))
+    if userID == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
         return
     }
@@ -159,7 +159,7 @@ func (ac *AssignmentController) ListSupervisors(c *gin.Context) {
     }
 
     type row struct {
-        UserID    uint   `json:"user_id"`
+        UserID    string `json:"user_id"`
         FullName  string `json:"full_name"`
         Email     string `json:"email"`
         CreatedAt string `json:"created_at"`
@@ -213,7 +213,7 @@ func (ac *AssignmentController) ListStudents(c *gin.Context) {
     }
 
     type row struct {
-        UserID    uint   `json:"user_id"`
+        UserID    string `json:"user_id"`
         FullName  string `json:"full_name"`
         Email     string `json:"email"`
         Kelas     string `json:"kelas"`

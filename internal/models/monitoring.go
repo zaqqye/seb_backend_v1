@@ -6,7 +6,7 @@ import "time"
 // One row per siswa user.
 type StudentStatus struct {
     ID              uint       `gorm:"primaryKey"`
-    UserIDRef       uint       `gorm:"uniqueIndex"`
+    UserIDRef       string     `gorm:"uniqueIndex"`
     AppVersion      string     `gorm:"size:64"`
     Locked          bool       `gorm:"index"`
     BlockedFromExam bool       `gorm:"index"`
@@ -14,4 +14,3 @@ type StudentStatus struct {
     CreatedAt       time.Time
     UpdatedAt       time.Time
 }
-

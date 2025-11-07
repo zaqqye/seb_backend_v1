@@ -43,7 +43,7 @@ func AuthMiddleware(db *gorm.DB, cfg AuthConfig) gin.HandlerFunc {
         }
 
         var user models.User
-        if err := db.Where("user_id = ? AND active = ?", claims.UserID, true).First(&user).Error; err != nil {
+        if err := db.Where("id = ? AND active = ?", claims.UserID, true).First(&user).Error; err != nil {
             c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found or inactive"})
             return
         }
