@@ -310,7 +310,6 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     for _, u := range users {
         userIDs = append(userIDs, u.ID)
     }
-
     type roomRow struct {
         UserID   string
         RoomID   string
