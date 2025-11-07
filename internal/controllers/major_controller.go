@@ -135,14 +135,13 @@ func (mc *MajorController) CreateMajor(c *gin.Context) {
 }
 
 func (mc *MajorController) GetMajor(c *gin.Context) {
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil {
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
         return
     }
     var m models.Major
-    if err := mc.DB.First(&m, id).Error; err != nil {
+    if err := mc.DB.Where("id = ?", id).First(&m).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "major not found"})
         return
     }
@@ -150,14 +149,13 @@ func (mc *MajorController) GetMajor(c *gin.Context) {
 }
 
 func (mc *MajorController) UpdateMajor(c *gin.Context) {
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil {
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
         return
     }
     var m models.Major
-    if err := mc.DB.First(&m, id).Error; err != nil {
+    if err := mc.DB.Where("id = ?", id).First(&m).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "major not found"})
         return
     }
@@ -186,16 +184,14 @@ func (mc *MajorController) UpdateMajor(c *gin.Context) {
 }
 
 func (mc *MajorController) DeleteMajor(c *gin.Context) {
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil {
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
         return
     }
-    if err := mc.DB.Delete(&models.Major{}, id).Error; err != nil {
+    if err := mc.DB.Where("id = ?", id).Delete(&models.Major{}).Error; err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
     c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
-

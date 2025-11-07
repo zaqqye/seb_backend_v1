@@ -62,10 +62,10 @@ type sduiUpdateRequest struct {
 }
 
 func (a *SDUIAdminController) Update(c *gin.Context) {
-    id, err := strconv.Atoi(c.Param("id"))
-    if err != nil || id <= 0 { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
     var rec models.SduiScreen
-    if err := a.DB.First(&rec, id).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "not found"}); return }
+    if err := a.DB.Where("id = ?", id).First(&rec).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "not found"}); return }
 
     var req sduiUpdateRequest
     if err := c.ShouldBindJSON(&req); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
@@ -85,17 +85,17 @@ func (a *SDUIAdminController) Update(c *gin.Context) {
 }
 
 func (a *SDUIAdminController) Get(c *gin.Context) {
-    id, err := strconv.Atoi(c.Param("id"))
-    if err != nil || id <= 0 { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
     var rec models.SduiScreen
-    if err := a.DB.First(&rec, id).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "not found"}); return }
+    if err := a.DB.Where("id = ?", id).First(&rec).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "not found"}); return }
     c.JSON(http.StatusOK, rec)
 }
 
 func (a *SDUIAdminController) Delete(c *gin.Context) {
-    id, err := strconv.Atoi(c.Param("id"))
-    if err != nil || id <= 0 { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
-    if err := a.DB.Delete(&models.SduiScreen{}, id).Error; err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" { c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"}); return }
+    if err := a.DB.Where("id = ?", id).Delete(&models.SduiScreen{}).Error; err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
     c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
@@ -144,4 +144,3 @@ func (a *SDUIAdminController) List(c *gin.Context) {
     if !all { meta["limit"] = limit; meta["page"] = page; meta["sort_by"] = sortBy; meta["sort_dir"] = sortDir }
     c.JSON(http.StatusOK, gin.H{"data": items, "meta": meta})
 }
-

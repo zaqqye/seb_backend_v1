@@ -17,7 +17,7 @@ type MonitoringController struct {
 }
 
 // allowedRoomIDsFor returns room IDs supervised by user; admin -> (nil, true)
-func (mc *MonitoringController) allowedRoomIDsFor(user models.User) ([]uint, bool, error) {
+func (mc *MonitoringController) allowedRoomIDsFor(user models.User) ([]string, bool, error) {
     if user.Role == "admin" {
         return nil, true, nil
     }
@@ -26,11 +26,11 @@ func (mc *MonitoringController) allowedRoomIDsFor(user models.User) ([]uint, boo
         if err := mc.DB.Where("user_id_ref = ?", user.ID).Find(&m).Error; err != nil {
             return nil, false, err
         }
-        ids := make([]uint, 0, len(m))
+        ids := make([]string, 0, len(m))
         for _, r := range m { ids = append(ids, r.RoomIDRef) }
         return ids, false, nil
     }
-    return []uint{}, false, nil
+    return []string{}, false, nil
 }
 
 // ListStudents returns monitoring rows scoped by role.
@@ -58,9 +58,7 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
     order := sortCol + " " + sortDir
 
     qText := strings.TrimSpace(c.Query("q"))
-    roomStr := strings.TrimSpace(c.Query("room_id"))
-    var roomID int
-    if roomStr != "" { if n, err := strconv.Atoi(roomStr); err == nil { roomID = n } }
+    roomID := strings.TrimSpace(c.Query("room_id"))
 
     allowedRooms, isAdmin, err := mc.allowedRoomIDsFor(user)
     if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
@@ -96,7 +94,7 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
         }
         base = base.Joins("JOIN room_students rs ON rs.user_id_ref = u.id").Where("rs.room_id_ref IN ?", allowedRooms)
     }
-    if roomID > 0 {
+    if roomID != "" {
         base = base.Joins("JOIN room_students frs ON frs.user_id_ref = u.id").Where("frs.room_id_ref = ?", roomID)
     }
 

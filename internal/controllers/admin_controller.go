@@ -313,7 +313,7 @@ func (a *AdminController) ListUsers(c *gin.Context) {
 
     type roomRow struct {
         UserID   string
-        RoomID   uint
+        RoomID   string
         RoomName string
     }
     studentRooms := make(map[string]roomRow)

@@ -162,14 +162,13 @@ func (rc *RoomController) CreateRoom(c *gin.Context) {
 }
 
 func (rc *RoomController) GetRoom(c *gin.Context) {
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil {
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
         return
     }
     var room models.Room
-    if err := rc.DB.First(&room, id).Error; err != nil {
+    if err := rc.DB.Where("id = ?", id).First(&room).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
         return
     }
@@ -177,14 +176,13 @@ func (rc *RoomController) GetRoom(c *gin.Context) {
 }
 
 func (rc *RoomController) UpdateRoom(c *gin.Context) {
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil {
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
         return
     }
     var room models.Room
-    if err := rc.DB.First(&room, id).Error; err != nil {
+    if err := rc.DB.Where("id = ?", id).First(&room).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
         return
     }
@@ -212,13 +210,12 @@ func (rc *RoomController) UpdateRoom(c *gin.Context) {
 }
 
 func (rc *RoomController) DeleteRoom(c *gin.Context) {
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil {
+    id := strings.TrimSpace(c.Param("id"))
+    if id == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
         return
     }
-    if err := rc.DB.Delete(&models.Room{}, id).Error; err != nil {
+    if err := rc.DB.Where("id = ?", id).Delete(&models.Room{}).Error; err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }

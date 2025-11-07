@@ -94,7 +94,7 @@
 **Notes**
 - On first run, the server auto-migrates the `users` table.
 - Admin manages registration via `POST /api/v1/admin/users`. If `role` is omitted, defaults to `siswa`. `active` defaults to `true`.
-- Seluruh ID user kini berupa UUID string; parameter/path `user_id` pada endpoint admin merujuk langsung ke nilai `id` tersebut.
+- Semua tabel (users, rooms, majors, exit codes, dsb.) kini memakai UUID string sebagai ID. Path parameter `:id` / `:user_id` / `room_id` / `student_user_id` harus diisi dengan UUID versi terbaru.
 - Admin dapat melakukan import massal via `POST /api/v1/admin/users/import` dengan mengunggah file CSV pada field `file`.
 - If you see a Postgres error like `simple protocol queries must be run with client_encoding=UTF8`, ensure your Postgres instance supports UTF8 client encoding. The DSN in code sets `client_encoding=UTF8`; alternatively set env `PGCLIENTENCODING=UTF8`.
 

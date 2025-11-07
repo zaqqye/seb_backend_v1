@@ -23,7 +23,7 @@ type ExitCodeController struct {
 var errNotAllowedForRoom = errors.New("not allowed for this room")
 
 // Helper: return allowed room IDs for a user. Admins: nil means all.
-func (ec *ExitCodeController) allowedRoomIDsFor(user models.User) ([]uint, bool, error) {
+func (ec *ExitCodeController) allowedRoomIDsFor(user models.User) ([]string, bool, error) {
     if user.Role == "admin" {
         return nil, true, nil // all rooms allowed
     }
@@ -32,17 +32,17 @@ func (ec *ExitCodeController) allowedRoomIDsFor(user models.User) ([]uint, bool,
         if err := ec.DB.Where("user_id_ref = ?", user.ID).Find(&m).Error; err != nil {
             return nil, false, err
         }
-        ids := make([]uint, 0, len(m))
+        ids := make([]string, 0, len(m))
         for _, r := range m {
             ids = append(ids, r.RoomIDRef)
         }
         return ids, false, nil
     }
-    return []uint{}, false, nil // siswa: no access
+    return []string{}, false, nil // siswa: no access
 }
 
 type generateExitCodeRequest struct {
-    RoomID      *uint  `json:"room_id"`        // required: determines which room's students are targeted
+    RoomID      *string  `json:"room_id"`        // required: determines which room's students are targeted
     Length      int    `json:"length"`         // optional length of generated code; defaults to 6
     StudentIDs  []string `json:"student_ids"`    // optional list of specific students within the room
     AllStudents bool   `json:"all_students"`   // when true, generate codes for every student in the room
@@ -58,10 +58,12 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
         return
     }
 
-    if req.RoomID == nil {
+    if req.RoomID == nil || strings.TrimSpace(*req.RoomID) == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required"})
         return
     }
+    trimmedRoomID := strings.TrimSpace(*req.RoomID)
+    req.RoomID = &trimmedRoomID
     if !req.AllStudents && len(req.StudentIDs) == 0 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids is required unless all_students is true"})
         return
@@ -94,7 +96,7 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
 
     // Ensure room exists
     var room models.Room
-    if err := ec.DB.First(&room, *req.RoomID).Error; err != nil {
+    if err := ec.DB.Where("id = ?", *req.RoomID).First(&room).Error; err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
     }
@@ -285,12 +287,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
 
     // Filters
     if roomStr := strings.TrimSpace(c.Query("room_id")); roomStr != "" {
-        if roomID, err := strconv.Atoi(roomStr); err == nil && roomID > 0 {
-            base = base.Where("room_id_ref = ?", roomID)
-        } else {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
-            return
-        }
+        base = base.Where("room_id_ref = ?", roomStr)
     }
     if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
         base = base.Where("student_user_id_ref = ?", studentStr)
@@ -322,9 +319,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
     }
     // Reapply filters similarly as base
     if roomStr := strings.TrimSpace(c.Query("room_id")); roomStr != "" {
-        if roomID, err := strconv.Atoi(roomStr); err == nil && roomID > 0 {
-            listQ = listQ.Where("room_id_ref = ?", roomID)
-        }
+        listQ = listQ.Where("room_id_ref = ?", roomStr)
     }
     if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
         listQ = listQ.Where("student_user_id_ref = ?", studentStr)
@@ -374,14 +369,13 @@ func (ec *ExitCodeController) Revoke(c *gin.Context) {
     uVal, _ := c.Get("user")
     user := uVal.(models.User)
 
-    idStr := c.Param("id")
-    id, err := strconv.Atoi(idStr)
-    if err != nil || id <= 0 {
+    idStr := strings.TrimSpace(c.Param("id"))
+    if idStr == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
         return
     }
     var rec models.ExitCode
-    if err := ec.DB.First(&rec, id).Error; err != nil {
+    if err := ec.DB.Where("id = ?", idStr).First(&rec).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "exit code not found"})
         return
     }
@@ -419,9 +413,9 @@ func (ec *ExitCodeController) Revoke(c *gin.Context) {
 
 // Consume marks a code as used (single-use). If already used, returns 409.
 type consumeRequest struct {
-    Code          string `json:"code" binding:"required"`
-    RoomID        *uint  `json:"room_id"`
-    StudentUserID *string  `json:"student_user_id"`
+    Code          string  `json:"code" binding:"required"`
+    RoomID        *string `json:"room_id"`
+    StudentUserID *string `json:"student_user_id"`
 }
 
 func (ec *ExitCodeController) Consume(c *gin.Context) {
@@ -434,6 +428,15 @@ func (ec *ExitCodeController) Consume(c *gin.Context) {
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
+    }
+
+    if req.RoomID != nil {
+        trimmed := strings.TrimSpace(*req.RoomID)
+        if trimmed == "" {
+            req.RoomID = nil
+        } else {
+            req.RoomID = &trimmed
+        }
     }
 
     role := strings.ToLower(user.Role)
