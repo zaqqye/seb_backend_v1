@@ -433,7 +433,7 @@ func (a *AdminController) GetUser(c *gin.Context) {
 type updateUserRequest struct {
     FullName *string `json:"full_name"`
     Email    *string `json:"email"`
-    Password *string `json:"password"`
+    Password *FlexibleString `json:"password"`
     Role     *string `json:"role"`
     Kelas    *FlexibleString `json:"kelas"`
     Jurusan  *string `json:"jurusan"`
@@ -476,13 +476,16 @@ func (a *AdminController) UpdateUser(c *gin.Context) {
     if req.Active != nil {
         u.Active = *req.Active
     }
-    if req.Password != nil && *req.Password != "" {
-        pw, err := utils.HashPassword(*req.Password)
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
-            return
+    if req.Password != nil {
+        raw := strings.TrimSpace(req.Password.String())
+        if raw != "" {
+            pw, err := utils.HashPassword(raw)
+            if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+                return
+            }
+            u.Password = pw
         }
-        u.Password = pw
     }
 
     if err := a.DB.Save(&u).Error; err != nil {

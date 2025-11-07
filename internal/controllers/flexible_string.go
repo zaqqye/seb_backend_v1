@@ -1,4 +1,5 @@
 package controllers
+package controllers
 
 import (
 	"bytes"
@@ -7,27 +8,28 @@ import (
 	"strings"
 )
 
-// FlexibleString allows JSON fields to be provided as string or number
+// FlexibleString allows JSON fields to be provided as string or number.
 type FlexibleString string
 
 func (fs *FlexibleString) UnmarshalJSON(data []byte) error {
 	if fs == nil {
 		return fmt.Errorf("FlexibleString: nil receiver")
 	}
+
 	trimmed := bytes.TrimSpace(data)
 	if bytes.Equal(trimmed, []byte("null")) {
 		return nil
 	}
 
-	var s string
-	if err := json.Unmarshal(trimmed, &s); err == nil {
-		*fs = FlexibleString(strings.TrimSpace(s))
+	var asString string
+	if err := json.Unmarshal(trimmed, &asString); err == nil {
+		*fs = FlexibleString(strings.TrimSpace(asString))
 		return nil
 	}
 
-	var num json.Number
-	if err := json.Unmarshal(trimmed, &num); err == nil {
-		*fs = FlexibleString(num.String())
+	var asNumber json.Number
+	if err := json.Unmarshal(trimmed, &asNumber); err == nil {
+		*fs = FlexibleString(asNumber.String())
 		return nil
 	}
 

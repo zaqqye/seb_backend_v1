@@ -3,6 +3,7 @@ package controllers
 import (
     "net/http"
     "strconv"
+    "strings"
     "time"
 
     "github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ type AuthController struct {
 type registerRequest struct {
     FullName string         `json:"full_name" binding:"required"`
     Email    string         `json:"email" binding:"required,email"`
-    Password string         `json:"password" binding:"required,min=6"`
+    Password FlexibleString `json:"password" binding:"required"`
     Kelas    FlexibleString `json:"kelas"`
     Jurusan  string         `json:"jurusan"`
     Role     string         `json:"role"`   // admin-only endpoint will validate
@@ -44,8 +45,17 @@ func (a *AuthController) Register(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
+    rawPassword := strings.TrimSpace(req.Password.String())
+    if rawPassword == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "password is required"})
+        return
+    }
+    if len(rawPassword) < 6 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 6 characters"})
+        return
+    }
 
-    pw, err := utils.HashPassword(req.Password)
+    pw, err := utils.HashPassword(rawPassword)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
         return
