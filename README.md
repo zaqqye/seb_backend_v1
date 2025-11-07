@@ -107,6 +107,8 @@
   - `q` (search) — ILIKE on `full_name` or `email`
   - `role` — filter by role (`admin|pengawas|siswa`)
   - `active` — `true|false|1|0`
+  - `kelas` — filter exact class (case-insensitive)
+  - `jurusan` — filter exact major (case-insensitive)
 
 **Admin User Import (CSV)**
 - Endpoint: `POST /api/v1/admin/users/import` (multipart).

@@ -249,6 +249,8 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     qText := strings.TrimSpace(c.Query("q"))
     role := strings.TrimSpace(strings.ToLower(c.Query("role")))
     activeStr := strings.TrimSpace(strings.ToLower(c.Query("active")))
+    kelasFilter := strings.TrimSpace(strings.ToLower(c.Query("kelas")))
+    jurusanFilter := strings.TrimSpace(strings.ToLower(c.Query("jurusan")))
 
     base := a.DB.Model(&models.User{})
     if qText != "" {
@@ -261,6 +263,12 @@ func (a *AdminController) ListUsers(c *gin.Context) {
             return
         }
         base = base.Where("role = ?", role)
+    }
+    if kelasFilter != "" {
+        base = base.Where("LOWER(kelas) = ?", kelasFilter)
+    }
+    if jurusanFilter != "" {
+        base = base.Where("LOWER(jurusan) = ?", jurusanFilter)
     }
     if activeStr != "" {
         switch activeStr {
@@ -289,6 +297,12 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     }
     if role != "" {
         listQ = listQ.Where("role = ?", role)
+    }
+    if kelasFilter != "" {
+        listQ = listQ.Where("LOWER(kelas) = ?", kelasFilter)
+    }
+    if jurusanFilter != "" {
+        listQ = listQ.Where("LOWER(jurusan) = ?", jurusanFilter)
     }
     if activeStr != "" {
         switch activeStr {
@@ -412,6 +426,12 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     }
     if activeStr != "" {
         meta["active"] = activeStr
+    }
+    if kelasFilter != "" {
+        meta["kelas"] = kelasFilter
+    }
+    if jurusanFilter != "" {
+        meta["jurusan"] = jurusanFilter
     }
     c.JSON(http.StatusOK, gin.H{"data": out, "meta": meta})
 }
