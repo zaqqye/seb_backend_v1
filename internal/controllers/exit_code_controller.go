@@ -197,7 +197,7 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
                 }
                 break
             }
-            if rec.ID == 0 {
+            if rec.ID == "" {
                 return errors.New("failed to generate exit code")
             }
             created = append(created, rec)
