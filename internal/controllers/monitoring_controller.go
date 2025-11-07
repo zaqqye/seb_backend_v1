@@ -7,7 +7,6 @@ import (
     "time"
 
     "github.com/gin-gonic/gin"
-    "github.com/google/uuid"
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
@@ -63,7 +62,6 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
 
     allowedRooms, isAdmin, err := mc.allowedRoomIDsFor(user)
     if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
-    var allowedRoomUUIDs []uuid.UUID
 
     // Base query from users (siswa only)
     type row struct {
@@ -94,13 +92,7 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
             c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
             return
         }
-        allowedRoomUUIDs, err = toUUIDSlice(allowedRooms)
-        if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
-        if len(allowedRoomUUIDs) == 0 {
-            c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
-            return
-        }
-        base = base.Joins("JOIN room_students rs ON rs.user_id_ref = u.id").Where("rs.room_id_ref IN ?", allowedRoomUUIDs)
+        base = base.Joins("JOIN room_students rs ON rs.user_id_ref = u.id").Where("rs.room_id_ref::text IN ?", allowedRooms)
     }
     if roomID != "" {
         base = base.Joins("JOIN room_students frs ON frs.user_id_ref = u.id").Where("frs.room_id_ref = ?", roomID)

@@ -8,7 +8,6 @@ import (
     "time"
 
     "github.com/gin-gonic/gin"
-    "github.com/google/uuid"
     "github.com/jackc/pgconn"
     "gorm.io/gorm"
     "gorm.io/gorm/clause"
@@ -280,7 +279,6 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
-    var allowedRoomUUIDs []uuid.UUID
 
     base := ec.DB.Model(&models.ExitCode{})
     // Scope by role
@@ -290,16 +288,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
             c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
             return
         }
-        allowedRoomUUIDs, err = toUUIDSlice(allowedRooms)
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-            return
-        }
-        if len(allowedRoomUUIDs) == 0 {
-            c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
-            return
-        }
-        base = base.Where("room_id_ref IN ?", allowedRoomUUIDs)
+        base = base.Where("room_id_ref::text IN ?", allowedRooms)
     }
 
     // Filters
@@ -332,7 +321,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
     var items []models.ExitCode
     listQ := ec.DB.Order(order)
     if !isAdmin {
-        listQ = listQ.Where("room_id_ref IN ?", allowedRoomUUIDs)
+        listQ = listQ.Where("room_id_ref::text IN ?", allowedRooms)
     }
     // Reapply filters similarly as base
     if roomStr := strings.TrimSpace(c.Query("room_id")); roomStr != "" {

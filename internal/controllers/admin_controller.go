@@ -310,11 +310,6 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     for _, u := range users {
         userIDs = append(userIDs, u.ID)
     }
-    uuidUserIDs, err := toUUIDSlice(userIDs)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
 
     type roomRow struct {
         UserID   string
@@ -324,12 +319,12 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     studentRooms := make(map[string]roomRow)
     supervisorRooms := make(map[string]roomRow)
 
-    if len(uuidUserIDs) > 0 {
+    if len(userIDs) > 0 {
         var studentRows []roomRow
         if err := a.DB.Table("room_students AS rs").
             Select("rs.user_id_ref AS user_id, r.id AS room_id, r.name AS room_name").
             Joins("JOIN rooms r ON r.id = rs.room_id_ref").
-            Where("rs.user_id_ref IN ?", uuidUserIDs).
+            Where("rs.user_id_ref::text IN ?", userIDs).
             Order("rs.created_at ASC").
             Scan(&studentRows).Error; err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -345,7 +340,7 @@ func (a *AdminController) ListUsers(c *gin.Context) {
         if err := a.DB.Table("room_supervisors AS rs").
             Select("rs.user_id_ref AS user_id, r.id AS room_id, r.name AS room_name").
             Joins("JOIN rooms r ON r.id = rs.room_id_ref").
-            Where("rs.user_id_ref IN ?", uuidUserIDs).
+            Where("rs.user_id_ref::text IN ?", userIDs).
             Order("rs.created_at ASC").
             Scan(&supervisorRows).Error; err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
