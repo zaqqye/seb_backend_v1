@@ -523,8 +523,37 @@ func (a *AdminController) UpdateUser(c *gin.Context) {
 }
 
 func (a *AdminController) DeleteUser(c *gin.Context) {
-    userID := c.Param("user_id")
-    if err := a.DB.Where("id = ?", userID).Delete(&models.User{}).Error; err != nil {
+    userID := strings.TrimSpace(c.Param("user_id"))
+    if userID == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
+        return
+    }
+    err := a.DB.Transaction(func(tx *gorm.DB) error {
+        // Remove monitoring status, assignments, exit codes, refresh tokens referencing the user
+        if err := tx.Where("user_id_ref = ?", userID).Delete(&models.StudentStatus{}).Error; err != nil {
+            return err
+        }
+        if err := tx.Where("user_id_ref = ?", userID).Delete(&models.RoomSupervisor{}).Error; err != nil {
+            return err
+        }
+        if err := tx.Where("user_id_ref = ?", userID).Delete(&models.RoomStudent{}).Error; err != nil {
+            return err
+        }
+        if err := tx.Where("user_id_ref = ?", userID).Delete(&models.ExitCode{}).Error; err != nil {
+            return err
+        }
+        if err := tx.Where("student_user_id_ref = ?", userID).Delete(&models.ExitCode{}).Error; err != nil {
+            return err
+        }
+        if err := tx.Where("user_id_ref = ?", userID).Delete(&models.RefreshToken{}).Error; err != nil {
+            return err
+        }
+        if err := tx.Where("id = ?", userID).Delete(&models.User{}).Error; err != nil {
+            return err
+        }
+        return nil
+    })
+    if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
