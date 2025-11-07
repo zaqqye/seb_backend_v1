@@ -10,6 +10,7 @@ import (
     "strings"
 
     "github.com/gin-gonic/gin"
+    "github.com/google/uuid"
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
@@ -310,6 +311,19 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     for _, u := range users {
         userIDs = append(userIDs, u.ID)
     }
+<<<<<<< HEAD
+=======
+    uuidUserIDs := make([]uuid.UUID, 0, len(userIDs))
+    for _, idStr := range userIDs {
+        parsed, err := uuid.Parse(idStr)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("invalid user id format: %s", err.Error())})
+            return
+        }
+        uuidUserIDs = append(uuidUserIDs, parsed)
+    }
+
+>>>>>>> 6b4d322fd873cfbdfe450955fd45a61b32f29044
     type roomRow struct {
         UserID   string
         RoomID   string
@@ -318,12 +332,12 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     studentRooms := make(map[string]roomRow)
     supervisorRooms := make(map[string]roomRow)
 
-    if len(userIDs) > 0 {
+    if len(uuidUserIDs) > 0 {
         var studentRows []roomRow
         if err := a.DB.Table("room_students AS rs").
             Select("rs.user_id_ref AS user_id, r.id AS room_id, r.name AS room_name").
             Joins("JOIN rooms r ON r.id = rs.room_id_ref").
-            Where("rs.user_id_ref::text IN ?", userIDs).
+            Where("rs.user_id_ref IN ?", uuidUserIDs).
             Order("rs.created_at ASC").
             Scan(&studentRows).Error; err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -339,7 +353,7 @@ func (a *AdminController) ListUsers(c *gin.Context) {
         if err := a.DB.Table("room_supervisors AS rs").
             Select("rs.user_id_ref AS user_id, r.id AS room_id, r.name AS room_name").
             Joins("JOIN rooms r ON r.id = rs.room_id_ref").
-            Where("rs.user_id_ref::text IN ?", userIDs).
+            Where("rs.user_id_ref IN ?", uuidUserIDs).
             Order("rs.created_at ASC").
             Scan(&supervisorRows).Error; err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
