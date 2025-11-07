@@ -311,8 +311,6 @@ func (a *AdminController) ListUsers(c *gin.Context) {
     for _, u := range users {
         userIDs = append(userIDs, u.ID)
     }
-<<<<<<< HEAD
-=======
     uuidUserIDs := make([]uuid.UUID, 0, len(userIDs))
     for _, idStr := range userIDs {
         parsed, err := uuid.Parse(idStr)
@@ -322,8 +320,6 @@ func (a *AdminController) ListUsers(c *gin.Context) {
         }
         uuidUserIDs = append(uuidUserIDs, parsed)
     }
-
->>>>>>> 6b4d322fd873cfbdfe450955fd45a61b32f29044
     type roomRow struct {
         UserID   string
         RoomID   string
