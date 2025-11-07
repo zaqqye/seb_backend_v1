@@ -435,7 +435,7 @@ type updateUserRequest struct {
     Email    *string `json:"email"`
     Password *string `json:"password"`
     Role     *string `json:"role"`
-    Kelas    *string `json:"kelas"`
+    Kelas    *FlexibleString `json:"kelas"`
     Jurusan  *string `json:"jurusan"`
     Active   *bool   `json:"active"`
 }
@@ -468,7 +468,7 @@ func (a *AdminController) UpdateUser(c *gin.Context) {
         u.Role = *req.Role
     }
     if req.Kelas != nil {
-        u.Kelas = *req.Kelas
+        u.Kelas = req.Kelas.String()
     }
     if req.Jurusan != nil {
         u.Jurusan = *req.Jurusan

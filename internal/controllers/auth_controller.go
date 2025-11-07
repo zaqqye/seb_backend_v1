@@ -24,13 +24,13 @@ type AuthController struct {
 }
 
 type registerRequest struct {
-    FullName string `json:"full_name" binding:"required"`
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=6"`
-    Kelas    string `json:"kelas"`
-    Jurusan  string `json:"jurusan"`
-    Role     string `json:"role"`   // admin-only endpoint will validate
-    Active   *bool  `json:"active"` // optional, defaults to true
+    FullName string         `json:"full_name" binding:"required"`
+    Email    string         `json:"email" binding:"required,email"`
+    Password string         `json:"password" binding:"required,min=6"`
+    Kelas    FlexibleString `json:"kelas"`
+    Jurusan  string         `json:"jurusan"`
+    Role     string         `json:"role"`   // admin-only endpoint will validate
+    Active   *bool          `json:"active"` // optional, defaults to true
 }
 
 type loginRequest struct {
@@ -73,7 +73,7 @@ func (a *AuthController) Register(c *gin.Context) {
         Email:    req.Email,
         Password: pw,
         Role:     role,
-        Kelas:    req.Kelas,
+        Kelas:    req.Kelas.String(),
         Jurusan:  req.Jurusan,
         Active:   active,
     }
