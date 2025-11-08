@@ -12,8 +12,8 @@ import (
 )
 
 type StudentStatusController struct {
-    DB  *gorm.DB
-    Hub *ws.MonitoringHub
+    DB   *gorm.DB
+    Hubs *ws.Hubs
 }
 
 type updateStatusRequest struct {
@@ -84,7 +84,7 @@ func (sc *StudentStatusController) UpdateSelf(c *gin.Context) {
             return
         }
     }
-    go broadcastStudentStatus(sc.DB, sc.Hub, user.ID)
+    go broadcastStudentStatus(sc.DB, sc.Hubs, user.ID)
 
     c.JSON(http.StatusOK, gin.H{
         "app_version":       st.AppVersion,

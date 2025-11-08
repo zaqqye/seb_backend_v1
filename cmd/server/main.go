@@ -37,11 +37,12 @@ func main() {
         log.Fatalf("sdui seed failed: %v", err)
     }
 
-    hub := ws.NewMonitoringHub()
-    go hub.Run()
+    hubs := ws.NewHubs()
+    go hubs.Monitoring.Run()
+    go hubs.Student.Run()
 
     r := gin.Default()
-    routes.Register(r, db, cfg, hub)
+    routes.Register(r, db, cfg, hubs)
 
     port := cfg.Port
     if port == "" {

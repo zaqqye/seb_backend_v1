@@ -12,7 +12,7 @@ import (
     "github.com/zaqqye/seb_backend_v1/internal/ws"
 )
 
-func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hub *ws.MonitoringHub) {
+func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
     // Controllers
     expiresMins, err := time.ParseDuration(cfg.JWTExpiresIn + "m")
     if err != nil || expiresMins == 0 {
@@ -37,8 +37,8 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hub *ws.Monitoring
     adminCtrl := &controllers.AdminController{DB: db}
     roomCtrl := &controllers.RoomController{DB: db}
     majorCtrl := &controllers.MajorController{DB: db}
-    studentStatusCtrl := &controllers.StudentStatusController{DB: db, Hub: hub}
-    monCtrl := &controllers.MonitoringController{DB: db, Hub: hub}
+    studentStatusCtrl := &controllers.StudentStatusController{DB: db, Hubs: hubs}
+    monCtrl := &controllers.MonitoringController{DB: db, Hubs: hubs}
 
     // Public
     auth := r.Group("/api/v1/auth")
@@ -127,7 +127,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hub *ws.Monitoring
         }
 
         // Exit Codes (admin + pengawas)
-        exitCtrl := &controllers.ExitCodeController{DB: db, Hub: hub}
+        exitCtrl := &controllers.ExitCodeController{DB: db, Hubs: hubs}
         exit := api.Group("/exit-codes", middleware.RequireRoles("admin", "pengawas"))
         {
             exit.POST("/generate", exitCtrl.Generate)
@@ -154,6 +154,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hub *ws.Monitoring
     }
     wsGroup := r.Group("/ws", authMW)
     {
-        wsGroup.GET("/monitoring", middleware.RequireRoles("admin", "pengawas"), ws.MonitoringHandler(db, hub))
+        wsGroup.GET("/monitoring", middleware.RequireRoles("admin", "pengawas"), ws.MonitoringHandler(db, hubs.Monitoring))
+        wsGroup.GET("/siswa/status", middleware.RequireRoles("siswa"), ws.StudentHandler(hubs))
     }
 }

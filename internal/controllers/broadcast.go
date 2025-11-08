@@ -10,8 +10,8 @@ import (
 	"github.com/zaqqye/seb_backend_v1/internal/ws"
 )
 
-func broadcastStudentStatus(db *gorm.DB, hub *ws.MonitoringHub, studentID string) {
-	if hub == nil {
+func broadcastStudentStatus(db *gorm.DB, hubs *ws.Hubs, studentID string) {
+	if hubs == nil {
 		return
 	}
 	var st models.StudentStatus
@@ -35,5 +35,17 @@ func broadcastStudentStatus(db *gorm.DB, hub *ws.MonitoringHub, studentID string
 		ForceLogoutAt:   st.ForceLogoutAt,
 		LastAppVersion:  st.AppVersion,
 	}
-	hub.Broadcast(payload)
+	if hubs.Monitoring != nil {
+		hubs.Monitoring.Broadcast(payload)
+	}
+	if hubs.Student != nil {
+		msg := ws.StudentMessage{
+			Type:            "status_update",
+			Locked:          st.Locked,
+			BlockedFromExam: st.BlockedFromExam,
+			ForceLogoutAt:   st.ForceLogoutAt,
+			AppVersion:      st.AppVersion,
+		}
+		hubs.Student.Notify(studentID, msg)
+	}
 }

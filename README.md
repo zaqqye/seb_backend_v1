@@ -140,8 +140,9 @@
   - `GET /ws/monitoring` (WebSocket) — admin/pengawas menerima update realtime status siswa (pengawas harus sudah di-assign ke ruangan; jika belum, koneksi ditolak)
  
   Student App Status (siswa):
- - `GET  /api/v1/siswa/status` — get current app status
- - `POST /api/v1/siswa/status` — update status; body: `{ app_version, locked }`
+- `GET  /api/v1/siswa/status` — get current app status
+- `POST /api/v1/siswa/status` — update status; body: `{ app_version, locked }`
+- `GET /ws/siswa/status` (WebSocket) — siswa menerima instruksi realtime (force logout, allow exam) dan menjaga heartbeat koneksi
 
 **Notes (Exit Codes)**
 - Pengawas hanya boleh generate/list/revoke untuk `room_id` yang menjadi pengawasnya.

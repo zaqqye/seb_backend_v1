@@ -18,8 +18,8 @@ import (
 )
 
 type ExitCodeController struct {
-    DB  *gorm.DB
-    Hub *ws.MonitoringHub
+    DB   *gorm.DB
+    Hubs *ws.Hubs
 }
 
 var errNotAllowedForRoom = errors.New("not allowed for this room")
@@ -531,6 +531,6 @@ func (ec *ExitCodeController) Consume(c *gin.Context) {
             _ = ec.DB.Save(&st).Error
         }
     }
-    go broadcastStudentStatus(ec.DB, ec.Hub, targetStudentID)
+    go broadcastStudentStatus(ec.DB, ec.Hubs, targetStudentID)
     c.JSON(http.StatusOK, gin.H{"message": "consumed"})
 }
