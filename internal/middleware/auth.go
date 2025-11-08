@@ -49,12 +49,15 @@ func AuthMiddleware(db *gorm.DB, cfg AuthConfig) gin.HandlerFunc {
         }
 
         // Optional: force-logout check using StudentStatus.ForceLogoutAt vs token iat
-        var st models.StudentStatus
-        if err := db.Where("user_id_ref = ?", user.ID).First(&st).Error; err == nil {
-            if st.ForceLogoutAt != nil && claims.IssuedAt != nil {
-                if !claims.IssuedAt.Time.After(*st.ForceLogoutAt) {
-                    c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "session revoked"})
-                    return
+        role := strings.ToLower(user.Role)
+        if role == "siswa" {
+            var st models.StudentStatus
+            if err := db.Where("user_id_ref = ?", user.ID).First(&st).Error; err == nil {
+                if st.ForceLogoutAt != nil && claims.IssuedAt != nil {
+                    if !claims.IssuedAt.Time.After(*st.ForceLogoutAt) {
+                        c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "session revoked"})
+                        return
+                    }
                 }
             }
         }
