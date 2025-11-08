@@ -49,7 +49,7 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
     sortDir := strings.ToUpper(c.DefaultQuery("sort_dir", "DESC"))
     if sortDir != "ASC" && sortDir != "DESC" { sortDir = "DESC" }
     allowedSorts := map[string]string{
-        "updated_at": "updated_at",
+        "updated_at": "COALESCE(ss.updated_at, u.updated_at)",
         "full_name":  "u.full_name",
         "email":      "u.email",
         "kelas":      "u.kelas",
@@ -75,11 +75,11 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
         AppVer    string     `json:"app_version"`
         Locked    bool       `json:"locked"`
         Blocked   bool       `json:"blocked_from_exam"`
-        UpdatedAt *time.Time `json:"updated_at"`
+        UpdatedAt *time.Time `json:"updated_at" gorm:"column:merged_updated_at"`
     }
 
     base := mc.DB.Table("users AS u").
-        Select("u.id, u.full_name, u.email, u.kelas, u.jurusan, COALESCE(ss.app_version, '') AS app_version, COALESCE(ss.locked, FALSE) AS locked, COALESCE(ss.blocked_from_exam, FALSE) AS blocked_from_exam, COALESCE(ss.updated_at, u.updated_at) AS updated_at").
+        Select("u.id, u.full_name, u.email, u.kelas, u.jurusan, COALESCE(ss.app_version, '') AS app_version, COALESCE(ss.locked, FALSE) AS locked, COALESCE(ss.blocked_from_exam, FALSE) AS blocked_from_exam, COALESCE(ss.updated_at, u.updated_at) AS merged_updated_at").
         Joins("LEFT JOIN student_statuses ss ON ss.user_id_ref = u.id").
         Where("u.role = ?", "siswa")
 
@@ -105,7 +105,7 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return
     }
 
-    listQ := base.Distinct("u.id", "u.full_name", "u.email", "u.kelas", "u.jurusan", "app_version", "locked", "blocked_from_exam", "updated_at").Order(order)
+    listQ := base.Distinct("u.id", "u.full_name", "u.email", "u.kelas", "u.jurusan", "COALESCE(ss.app_version, '')", "COALESCE(ss.locked, FALSE)", "COALESCE(ss.blocked_from_exam, FALSE)", "COALESCE(ss.updated_at, u.updated_at)").Order(order)
     if !all { listQ = listQ.Offset((page-1)*limit).Limit(limit) }
     var rows []row
     if err := listQ.Scan(&rows).Error; err != nil {
