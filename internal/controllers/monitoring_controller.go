@@ -49,15 +49,15 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
     sortDir := strings.ToUpper(c.DefaultQuery("sort_dir", "DESC"))
     if sortDir != "ASC" && sortDir != "DESC" { sortDir = "DESC" }
     allowedSorts := map[string]string{
-        "updated_at": "COALESCE(ss.updated_at, u.updated_at)",
-        "full_name":  "u.full_name",
-        "email":      "u.email",
-        "kelas":      "u.kelas",
-        "jurusan":    "u.jurusan",
-        "locked":     "ss.locked",
+        "updated_at": "monitoring_updated_at",
+        "full_name":  "full_name",
+        "email":      "email",
+        "kelas":      "kelas",
+        "jurusan":    "jurusan",
+        "locked":     "monitoring_locked",
     }
     sortCol, ok := allowedSorts[sortBy]; if !ok { sortCol = allowedSorts["updated_at"] }
-    order := sortCol + " " + sortDir
+    order := "sub." + sortCol + " " + sortDir
 
     qText := strings.TrimSpace(c.Query("q"))
     roomID := strings.TrimSpace(c.Query("room_id"))
@@ -67,29 +67,35 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
 
     // Base query from users (siswa only)
     type row struct {
-        UserID    string     `json:"id"`
-        FullName  string     `json:"full_name"`
-        Email     string     `json:"email"`
-        Kelas     string     `json:"kelas"`
-        Jurusan   string     `json:"jurusan"`
-        AppVer    string     `json:"app_version"`
-        Locked    bool       `json:"locked"`
-        Blocked   bool       `json:"blocked_from_exam"`
-        UpdatedAt *time.Time `json:"updated_at" gorm:"column:merged_updated_at"`
-        RoomName  string     `json:"room_name"`
+        UserID               string     `gorm:"column:user_id"`
+        FullName             string     `gorm:"column:full_name"`
+        Email                string     `gorm:"column:email"`
+        Kelas                string     `gorm:"column:kelas"`
+        Jurusan              string     `gorm:"column:jurusan"`
+        StatusID             *string    `gorm:"column:status_id"`
+        AppVersion           string     `gorm:"column:app_version"`
+        MonitoringLocked     bool       `gorm:"column:monitoring_locked"`
+        BlockedFromExam      bool       `gorm:"column:blocked_from_exam"`
+        ForceLogoutAt        *time.Time `gorm:"column:force_logout_at"`
+        MonitoringUpdatedAt  *time.Time `gorm:"column:monitoring_updated_at"`
+        RoomID               *string    `gorm:"column:room_id"`
+        RoomName             *string    `gorm:"column:room_name"`
     }
 
     base := mc.DB.Table("users AS u").
         Select(`
-            u.id,
-            u.full_name,
-            u.email,
-            u.kelas,
-            u.jurusan,
+            u.id AS user_id,
+            u.full_name AS full_name,
+            u.email AS email,
+            u.kelas AS kelas,
+            u.jurusan AS jurusan,
+            ss.id AS status_id,
             COALESCE(ss.app_version, '') AS app_version,
-            COALESCE(ss.locked, FALSE) AS locked,
+            COALESCE(ss.locked, FALSE) AS monitoring_locked,
             COALESCE(ss.blocked_from_exam, FALSE) AS blocked_from_exam,
-            COALESCE(ss.updated_at, u.updated_at) AS merged_updated_at,
+            ss.force_logout_at AS force_logout_at,
+            COALESCE(ss.updated_at, u.updated_at) AS monitoring_updated_at,
+            r.id AS room_id,
             r.name AS room_name`).
         Joins("LEFT JOIN student_statuses ss ON ss.user_id_ref = u.id").
         Joins("LEFT JOIN room_students rs ON rs.user_id_ref = u.id").
@@ -107,27 +113,78 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
             c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
             return
         }
-        base = base.Joins("JOIN room_students rs ON rs.user_id_ref = u.id").Where("rs.room_id_ref::text IN ?", allowedRooms)
+        base = base.Where("rs.room_id_ref::text IN ?", allowedRooms)
     }
     if roomID != "" {
-        base = base.Joins("JOIN room_students frs ON frs.user_id_ref = u.id").Where("frs.room_id_ref = ?", roomID)
+        base = base.Where("rs.room_id_ref = ?", roomID)
     }
 
     var total int64
-    countQuery := mc.DB.Table("(?) AS sub", base)
-    if err := countQuery.Distinct("sub.id").Count(&total).Error; err != nil {
+    countBase := base.Session(&gorm.Session{NewDB: true})
+    if err := mc.DB.Table("(?) AS sub", countBase).Distinct("sub.user_id").Count(&total).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return
     }
 
-    listQ := mc.DB.Table("(?) AS sub", base).Order("sub." + order)
+    listQ := mc.DB.Table("(?) AS sub", base).Order(order)
     if !all { listQ = listQ.Offset((page-1)*limit).Limit(limit) }
     var rows []row
     if err := listQ.Find(&rows).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return
     }
+
+    strOrEmpty := func(val *string) string {
+        if val == nil { return "" }
+        return *val
+    }
+
+    type monitoringBlock struct {
+        ID              string     `json:"id"`
+        AppVersion      string     `json:"app_version"`
+        Locked          bool       `json:"locked"`
+        BlockedFromExam bool       `json:"blocked_from_exam"`
+        ForceLogoutAt   *time.Time `json:"force_logout_at"`
+        UpdatedAt       *time.Time `json:"updated_at"`
+    }
+    type roomBlock struct {
+        ID       string `json:"id"`
+        RoomName string `json:"room_name"`
+    }
+    type response struct {
+        ID         string          `json:"id"`
+        FullName   string          `json:"full_name"`
+        Email      string          `json:"email"`
+        Kelas      string          `json:"kelas"`
+        Jurusan    string          `json:"jurusan"`
+        Monitoring monitoringBlock `json:"monitoring"`
+        Room       roomBlock       `json:"room"`
+    }
+
+    data := make([]response, 0, len(rows))
+    for _, r := range rows {
+        data = append(data, response{
+            ID:       r.UserID,
+            FullName: r.FullName,
+            Email:    r.Email,
+            Kelas:    r.Kelas,
+            Jurusan:  r.Jurusan,
+            Monitoring: monitoringBlock{
+                ID:              strOrEmpty(r.StatusID),
+                AppVersion:      r.AppVersion,
+                Locked:          r.MonitoringLocked,
+                BlockedFromExam: r.BlockedFromExam,
+                ForceLogoutAt:   r.ForceLogoutAt,
+                UpdatedAt:       r.MonitoringUpdatedAt,
+            },
+            Room: roomBlock{
+                ID:       strOrEmpty(r.RoomID),
+                RoomName: strOrEmpty(r.RoomName),
+            },
+        })
+    }
+
     meta := gin.H{"total": total, "all": all}
     if !all { meta["limit"] = limit; meta["page"] = page; meta["sort_by"] = sortBy; meta["sort_dir"] = sortDir }
-    c.JSON(http.StatusOK, gin.H{"data": rows, "meta": meta})
+    c.JSON(http.StatusOK, gin.H{"data": data, "meta": meta})
 }
 
 // ForceLogout marks the student to be logged out and blocks exam until allowed again.
