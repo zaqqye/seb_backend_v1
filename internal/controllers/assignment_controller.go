@@ -1,6 +1,7 @@
 package controllers
 
 import (
+    "errors"
     "fmt"
     "net/http"
     "strconv"
@@ -101,8 +102,24 @@ func (ac *AssignmentController) AssignStudent(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "user is not siswa"})
         return
     }
-    rec := models.RoomStudent{UserIDRef: user.ID, RoomIDRef: room.ID}
-    if err := ac.DB.Where("user_id_ref = ? AND room_id_ref = ?", rec.UserIDRef, rec.RoomIDRef).FirstOrCreate(&rec).Error; err != nil {
+    if err := ac.DB.Transaction(func(tx *gorm.DB) error {
+        rec := models.RoomStudent{UserIDRef: user.ID, RoomIDRef: room.ID}
+        if err := tx.Where("user_id_ref = ? AND room_id_ref = ?", rec.UserIDRef, rec.RoomIDRef).FirstOrCreate(&rec).Error; err != nil {
+            return err
+        }
+        var st models.StudentStatus
+        if err := tx.Where("user_id_ref = ?", user.ID).First(&st).Error; err != nil {
+            if errors.Is(err, gorm.ErrRecordNotFound) {
+                st = models.StudentStatus{UserIDRef: user.ID}
+                if err := tx.Create(&st).Error; err != nil {
+                    return err
+                }
+            } else {
+                return err
+            }
+        }
+        return nil
+    }); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
@@ -121,7 +138,15 @@ func (ac *AssignmentController) UnassignStudent(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id"})
         return
     }
-    if err := ac.DB.Where("user_id_ref = ? AND room_id_ref = ?", userID, roomID).Delete(&models.RoomStudent{}).Error; err != nil {
+    if err := ac.DB.Transaction(func(tx *gorm.DB) error {
+        if err := tx.Where("user_id_ref = ? AND room_id_ref = ?", userID, roomID).Delete(&models.RoomStudent{}).Error; err != nil {
+            return err
+        }
+        if err := tx.Where("user_id_ref = ?", userID).Delete(&models.StudentStatus{}).Error; err != nil {
+            return err
+        }
+        return nil
+    }); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
