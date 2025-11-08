@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 
 	"github.com/zaqqye/seb_backend_v1/internal/models"
 )
