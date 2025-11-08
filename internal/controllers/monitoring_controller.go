@@ -57,7 +57,7 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
         "locked":     "monitoring_locked",
     }
     sortCol, ok := allowedSorts[sortBy]; if !ok { sortCol = allowedSorts["updated_at"] }
-    order := "sub." + sortCol + " " + sortDir
+    order := sortCol + " " + sortDir
 
     qText := strings.TrimSpace(c.Query("q"))
     roomID := strings.TrimSpace(c.Query("room_id"))
@@ -82,6 +82,23 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
         RoomName             *string    `gorm:"column:room_name"`
     }
 
+    applyFilters := func(q *gorm.DB) *gorm.DB {
+        if qText != "" {
+            like := "%" + qText + "%"
+            q = q.Where("u.full_name ILIKE ? OR u.email ILIKE ?", like, like)
+        }
+        if !isAdmin {
+            if len(allowedRooms) == 0 {
+                return q.Where("1 = 0")
+            }
+            q = q.Where("rs.room_id_ref::text IN ?", allowedRooms)
+        }
+        if roomID != "" {
+            q = q.Where("rs.room_id_ref = ?", roomID)
+        }
+        return q
+    }
+
     base := mc.DB.Table("users AS u").
         Select(`
             u.id AS user_id,
@@ -101,31 +118,24 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
         Joins("LEFT JOIN room_students rs ON rs.user_id_ref = u.id").
         Joins("LEFT JOIN rooms r ON r.id = rs.room_id_ref").
         Where("u.role = ?", "siswa")
+    base = applyFilters(base)
+    if !isAdmin && len(allowedRooms) == 0 {
+        c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
+        return
+    }
 
-    // Apply search
-    if qText != "" {
-        like := "%" + qText + "%"
-        base = base.Where("u.full_name ILIKE ? OR u.email ILIKE ?", like, like)
-    }
-    // Apply room scoping and filtering
-    if !isAdmin {
-        if len(allowedRooms) == 0 {
-            c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
-            return
-        }
-        base = base.Where("rs.room_id_ref::text IN ?", allowedRooms)
-    }
-    if roomID != "" {
-        base = base.Where("rs.room_id_ref = ?", roomID)
-    }
+    countQ := mc.DB.Table("users AS u").
+        Joins("LEFT JOIN student_statuses ss ON ss.user_id_ref = u.id").
+        Joins("LEFT JOIN room_students rs ON rs.user_id_ref = u.id").
+        Where("u.role = ?", "siswa")
+    countQ = applyFilters(countQ)
 
     var total int64
-    countBase := base.Session(&gorm.Session{NewDB: true})
-    if err := mc.DB.Table("(?) AS sub", countBase).Distinct("sub.user_id").Count(&total).Error; err != nil {
+    if err := countQ.Distinct("u.id").Count(&total).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return
     }
 
-    listQ := mc.DB.Table("(?) AS sub", base).Order(order)
+    listQ := base.Order(order)
     if !all { listQ = listQ.Offset((page-1)*limit).Limit(limit) }
     var rows []row
     if err := listQ.Find(&rows).Error; err != nil {
