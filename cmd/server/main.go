@@ -11,6 +11,7 @@ import (
     "github.com/zaqqye/seb_backend_v1/internal/config"
     "github.com/zaqqye/seb_backend_v1/internal/database"
     "github.com/zaqqye/seb_backend_v1/internal/routes"
+    "github.com/zaqqye/seb_backend_v1/internal/ws"
 )
 
 func main() {
@@ -36,8 +37,11 @@ func main() {
         log.Fatalf("sdui seed failed: %v", err)
     }
 
+    hub := ws.NewMonitoringHub()
+    go hub.Run()
+
     r := gin.Default()
-    routes.Register(r, db, cfg)
+    routes.Register(r, db, cfg, hub)
 
     port := cfg.Port
     if port == "" {

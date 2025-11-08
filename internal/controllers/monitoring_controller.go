@@ -10,10 +10,12 @@ import (
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
+    "github.com/zaqqye/seb_backend_v1/internal/ws"
 )
 
 type MonitoringController struct {
-    DB *gorm.DB
+    DB  *gorm.DB
+    Hub *ws.MonitoringHub
 }
 
 // allowedRoomIDsFor returns room IDs supervised by user; admin -> (nil, true)
@@ -146,6 +148,7 @@ func (mc *MonitoringController) ForceLogout(c *gin.Context) {
         if err := mc.DB.Save(&st).Error; err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
     }
     c.JSON(http.StatusOK, gin.H{"message": "student logged out and blocked"})
+    go broadcastStudentStatus(mc.DB, mc.Hub, target.ID)
 }
 
 // AllowExam clears the block so the student can start exam again.
@@ -176,4 +179,5 @@ func (mc *MonitoringController) AllowExam(c *gin.Context) {
         if err := mc.DB.Save(&st).Error; err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
     }
     c.JSON(http.StatusOK, gin.H{"message": "student allowed to start exam"})
+    go broadcastStudentStatus(mc.DB, mc.Hub, target.ID)
 }

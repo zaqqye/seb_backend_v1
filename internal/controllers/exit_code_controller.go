@@ -14,10 +14,12 @@ import (
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
     "github.com/zaqqye/seb_backend_v1/internal/utils"
+    "github.com/zaqqye/seb_backend_v1/internal/ws"
 )
 
 type ExitCodeController struct {
-    DB *gorm.DB
+    DB  *gorm.DB
+    Hub *ws.MonitoringHub
 }
 
 var errNotAllowedForRoom = errors.New("not allowed for this room")
@@ -529,5 +531,6 @@ func (ec *ExitCodeController) Consume(c *gin.Context) {
             _ = ec.DB.Save(&st).Error
         }
     }
+    go broadcastStudentStatus(ec.DB, ec.Hub, targetStudentID)
     c.JSON(http.StatusOK, gin.H{"message": "consumed"})
 }

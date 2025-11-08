@@ -8,10 +8,12 @@ import (
     "gorm.io/gorm"
 
     "github.com/zaqqye/seb_backend_v1/internal/models"
+    "github.com/zaqqye/seb_backend_v1/internal/ws"
 )
 
 type StudentStatusController struct {
-    DB *gorm.DB
+    DB  *gorm.DB
+    Hub *ws.MonitoringHub
 }
 
 type updateStatusRequest struct {
@@ -82,6 +84,7 @@ func (sc *StudentStatusController) UpdateSelf(c *gin.Context) {
             return
         }
     }
+    go broadcastStudentStatus(sc.DB, sc.Hub, user.ID)
 
     c.JSON(http.StatusOK, gin.H{
         "app_version":       st.AppVersion,

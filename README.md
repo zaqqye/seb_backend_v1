@@ -137,6 +137,7 @@
  - `GET  /api/v1/monitoring/students` — list siswa status; query: `q`, `room_id`, pagination/sort
  - `POST /api/v1/monitoring/students/:id/logout` — force logout + block from exam
  - `POST /api/v1/monitoring/students/:id/allow` — allow siswa to start exam again
+  - `GET /ws/monitoring` (WebSocket) — admin/pengawas menerima update realtime status siswa (pengawas harus sudah di-assign ke ruangan; jika belum, koneksi ditolak)
  
   Student App Status (siswa):
  - `GET  /api/v1/siswa/status` — get current app status

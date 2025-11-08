@@ -9,9 +9,10 @@ import (
     "github.com/zaqqye/seb_backend_v1/internal/config"
     "github.com/zaqqye/seb_backend_v1/internal/controllers"
     "github.com/zaqqye/seb_backend_v1/internal/middleware"
+    "github.com/zaqqye/seb_backend_v1/internal/ws"
 )
 
-func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
+func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hub *ws.MonitoringHub) {
     // Controllers
     expiresMins, err := time.ParseDuration(cfg.JWTExpiresIn + "m")
     if err != nil || expiresMins == 0 {
@@ -36,8 +37,8 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
     adminCtrl := &controllers.AdminController{DB: db}
     roomCtrl := &controllers.RoomController{DB: db}
     majorCtrl := &controllers.MajorController{DB: db}
-    studentStatusCtrl := &controllers.StudentStatusController{DB: db}
-    monCtrl := &controllers.MonitoringController{DB: db}
+    studentStatusCtrl := &controllers.StudentStatusController{DB: db, Hub: hub}
+    monCtrl := &controllers.MonitoringController{DB: db, Hub: hub}
 
     // Public
     auth := r.Group("/api/v1/auth")
@@ -126,7 +127,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
         }
 
         // Exit Codes (admin + pengawas)
-        exitCtrl := &controllers.ExitCodeController{DB: db}
+        exitCtrl := &controllers.ExitCodeController{DB: db, Hub: hub}
         exit := api.Group("/exit-codes", middleware.RequireRoles("admin", "pengawas"))
         {
             exit.POST("/generate", exitCtrl.Generate)
@@ -150,5 +151,9 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
         // SDUI and Config with auth context (role-aware)
         api.GET("/sdui/auth/screens/:name", sduiCtrl.GetScreen)
         api.GET("/config", cfgCtrl.Get)
+    }
+    wsGroup := r.Group("/ws", authMW)
+    {
+        wsGroup.GET("/monitoring", middleware.RequireRoles("admin", "pengawas"), ws.MonitoringHandler(db, hub))
     }
 }
