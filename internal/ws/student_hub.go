@@ -9,8 +9,8 @@ import (
 
 type StudentMessage struct {
 	Type            string     `json:"type"`
-	Locked          bool       `json:"locked,omitempty"`
-	BlockedFromExam bool       `json:"blocked_from_exam,omitempty"`
+	Locked          bool       `json:"locked"`
+	BlockedFromExam bool       `json:"blocked_from_exam"`
 	ForceLogoutAt   *time.Time `json:"force_logout_at,omitempty"`
 	AppVersion      string     `json:"app_version,omitempty"`
 	Message         string     `json:"message,omitempty"`
