@@ -22,18 +22,37 @@ func broadcastStudentStatus(db *gorm.DB, hubs *ws.Hubs, studentID string) {
 		return
 	}
 	var room models.RoomStudent
-	var roomID *string
+	var roomIDPtr *string
+	var roomIDValue string
+	roomBlock := ws.MonitoringRoom{}
 	if err := db.Where("user_id_ref = ?", studentID).First(&room).Error; err == nil {
-		roomID = &room.RoomIDRef
+		roomIDValue = room.RoomIDRef
+		roomIDPtr = &roomIDValue
+		roomBlock.ID = room.RoomIDRef
+		var roomModel models.Room
+		if err := db.Select("name").Where("id = ?", room.RoomIDRef).First(&roomModel).Error; err == nil {
+			roomBlock.RoomName = roomModel.Name
+		}
 	}
+	updatedAt := st.UpdatedAt
 	payload := ws.MonitoringPayload{
+		ID:              studentID,
 		StudentID:       studentID,
-		RoomID:          roomID,
+		RoomID:          roomIDPtr,
 		Locked:          st.Locked,
 		BlockedFromExam: st.BlockedFromExam,
 		UpdatedAt:       st.UpdatedAt,
 		ForceLogoutAt:   st.ForceLogoutAt,
 		LastAppVersion:  st.AppVersion,
+		Monitoring: ws.MonitoringSnapshot{
+			ID:              st.ID,
+			AppVersion:      st.AppVersion,
+			Locked:          st.Locked,
+			BlockedFromExam: st.BlockedFromExam,
+			ForceLogoutAt:   st.ForceLogoutAt,
+			UpdatedAt:       &updatedAt,
+		},
+		Room: roomBlock,
 	}
 	if hubs.Monitoring != nil {
 		hubs.Monitoring.Broadcast(payload)

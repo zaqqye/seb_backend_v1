@@ -17,13 +17,32 @@ const (
 
 // MonitoringPayload is pushed to pengawas/admin dashboards.
 type MonitoringPayload struct {
-	StudentID        string     `json:"student_id"`
-	RoomID           *string    `json:"room_id,omitempty"`
-	Locked           bool       `json:"locked"`
-	BlockedFromExam  bool       `json:"blocked_from_exam"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	ForceLogoutAt    *time.Time `json:"force_logout_at,omitempty"`
-	LastAppVersion   string     `json:"app_version,omitempty"`
+	ID               string             `json:"id"`
+	StudentID        string             `json:"student_id"`
+	RoomID           *string            `json:"room_id,omitempty"`
+	Locked           bool               `json:"locked"`
+	BlockedFromExam  bool               `json:"blocked_from_exam"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	ForceLogoutAt    *time.Time         `json:"force_logout_at,omitempty"`
+	LastAppVersion   string             `json:"app_version,omitempty"`
+	Monitoring       MonitoringSnapshot `json:"monitoring"`
+	Room             MonitoringRoom     `json:"room"`
+}
+
+// MonitoringSnapshot mirrors the monitoring block returned by the REST API.
+type MonitoringSnapshot struct {
+	ID              string     `json:"id"`
+	AppVersion      string     `json:"app_version"`
+	Locked          bool       `json:"locked"`
+	BlockedFromExam bool       `json:"blocked_from_exam"`
+	ForceLogoutAt   *time.Time `json:"force_logout_at,omitempty"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+}
+
+// MonitoringRoom mirrors the room object in REST responses.
+type MonitoringRoom struct {
+	ID       string `json:"id"`
+	RoomName string `json:"room_name"`
 }
 
 type monitoringMessage struct {
