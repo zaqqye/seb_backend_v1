@@ -14,6 +14,13 @@ func broadcastStudentStatus(db *gorm.DB, hubs *ws.Hubs, studentID string) {
 	if hubs == nil {
 		return
 	}
+	var user models.User
+	if err := db.Select("id", "full_name", "email", "kelas", "jurusan").Where("id = ?", studentID).First(&user).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("monitoring broadcast user: %v", err)
+		}
+		return
+	}
 	var st models.StudentStatus
 	if err := db.Where("user_id_ref = ?", studentID).First(&st).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -37,6 +44,10 @@ func broadcastStudentStatus(db *gorm.DB, hubs *ws.Hubs, studentID string) {
 	updatedAt := st.UpdatedAt
 	payload := ws.MonitoringPayload{
 		ID:              studentID,
+		FullName:        user.FullName,
+		Email:           user.Email,
+		Kelas:           user.Kelas,
+		Jurusan:         user.Jurusan,
 		StudentID:       studentID,
 		RoomID:          roomIDPtr,
 		Locked:          st.Locked,

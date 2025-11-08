@@ -18,6 +18,10 @@ const (
 // MonitoringPayload is pushed to pengawas/admin dashboards.
 type MonitoringPayload struct {
 	ID               string             `json:"id"`
+	FullName         string             `json:"full_name"`
+	Email            string             `json:"email"`
+	Kelas            string             `json:"kelas"`
+	Jurusan          string             `json:"jurusan"`
 	StudentID        string             `json:"student_id"`
 	RoomID           *string            `json:"room_id,omitempty"`
 	Locked           bool               `json:"locked"`
