@@ -114,40 +114,15 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
     }
 
     var total int64
-    countBase := mc.DB.Table("users AS u").Select("u.id").Where("u.role = ?", "siswa")
-    if qText != "" {
-        like := "%" + qText + "%"
-        countBase = countBase.Where("u.full_name ILIKE ? OR u.email ILIKE ?", like, like)
-    }
-    if !isAdmin {
-        if len(allowedRooms) == 0 {
-            c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
-            return
-        }
-        countBase = countBase.Joins("JOIN room_students rs ON rs.user_id_ref = u.id").Where("rs.room_id_ref::text IN ?", allowedRooms)
-    }
-    if roomID != "" {
-        countBase = countBase.Joins("JOIN room_students frs ON frs.user_id_ref = u.id").Where("frs.room_id_ref = ?", roomID)
-    }
-    if err := countBase.Distinct("u.id").Count(&total).Error; err != nil {
+    countQuery := mc.DB.Table("(?) AS sub", base)
+    if err := countQuery.Distinct("sub.id").Count(&total).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return
     }
 
-    listQ := base.Distinct(
-        "u.id",
-        "u.full_name",
-        "u.email",
-        "u.kelas",
-        "u.jurusan",
-        "COALESCE(ss.app_version, '')",
-        "COALESCE(ss.locked, FALSE)",
-        "COALESCE(ss.blocked_from_exam, FALSE)",
-        "COALESCE(ss.updated_at, u.updated_at)",
-        "r.name",
-    ).Order(order)
+    listQ := mc.DB.Table("(?) AS sub", base).Order("sub." + order)
     if !all { listQ = listQ.Offset((page-1)*limit).Limit(limit) }
     var rows []row
-    if err := listQ.Scan(&rows).Error; err != nil {
+    if err := listQ.Find(&rows).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return
     }
     meta := gin.H{"total": total, "all": all}
