@@ -6,6 +6,7 @@ import (
     "errors"
     "fmt"
     "io"
+    "log"
     "net/http"
     "strconv"
     "strings"
@@ -105,9 +106,16 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read header"})
         return
     }
+    cleanHeader := func(val string) string {
+        v := strings.TrimSpace(val)
+        for strings.HasPrefix(v, "\ufeff") {
+            v = strings.TrimPrefix(v, "\ufeff")
+        }
+        v = strings.Trim(v, "\"'")
+        return v
+    }
     for i := range header {
-        header[i] = strings.TrimSpace(header[i])
-        header[i] = strings.TrimPrefix(header[i], "\ufeff")
+        header[i] = cleanHeader(header[i])
     }
 
     headerIdx := make(map[string]int, len(header))
@@ -117,6 +125,7 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
             headerIdx[key] = idx
         }
     }
+    log.Printf("import csv headers: %+v", header)
 
     required := []string{"full_name", "email", "password"}
     for _, key := range required {
