@@ -353,6 +353,10 @@ func (ec *ExitCodeController) List(c *gin.Context) {
 
     out := make([]gin.H, 0, len(items))
     for _, e := range items {
+        status := "used"
+        if e.UsedAt == nil {
+            status = "unused"
+        }
         out = append(out, gin.H{
             "id":              e.ID,
             "room_id":         e.RoomIDRef,
@@ -361,6 +365,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
             "student_name":    e.StudentName,
             "code":            e.Code,
             "used_at":         e.UsedAt,
+            "status":          status,
             "created_at":      e.CreatedAt,
             "created_by":      e.UserIDRef,
         })

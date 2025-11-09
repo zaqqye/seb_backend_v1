@@ -65,6 +65,9 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
         api.GET("/auth/me", authCtrl.Me)
         api.POST("/auth/logout", authCtrl.Logout)
 
+        // Shared room listing (admin + pengawas)
+        api.GET("/admin/rooms", middleware.RequireRoles("admin", "pengawas"), roomCtrl.ListRooms)
+
         // Admin-only
         admin := api.Group("/admin", middleware.RequireRoles("admin"))
         {
@@ -76,7 +79,6 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
             admin.POST("/users/import", adminCtrl.ImportUsers)
 
             // Rooms (Kelas) CRUD
-            admin.GET("/rooms", roomCtrl.ListRooms)
             admin.POST("/rooms", roomCtrl.CreateRoom)
             admin.GET("/rooms/:id", roomCtrl.GetRoom)
             admin.PUT("/rooms/:id", roomCtrl.UpdateRoom)

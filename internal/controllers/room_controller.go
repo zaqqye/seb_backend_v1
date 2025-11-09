@@ -29,6 +29,13 @@ type updateRoomRequest struct {
 }
 
 func (rc *RoomController) ListRooms(c *gin.Context) {
+    uVal, ok := c.Get("user")
+    var currentUser models.User
+    var isAdmin bool
+    if ok {
+        currentUser = uVal.(models.User)
+        isAdmin = strings.ToLower(currentUser.Role) == "admin"
+    }
     // Pagination/sort same pattern as users; add filters: q (name), active
     all := strings.EqualFold(c.Query("all"), "true") || c.Query("all") == "1"
     limit := 20
@@ -66,6 +73,10 @@ func (rc *RoomController) ListRooms(c *gin.Context) {
     activeStr := strings.TrimSpace(strings.ToLower(c.Query("active")))
 
     base := rc.DB.Model(&models.Room{})
+    if !isAdmin && currentUser.ID != "" {
+        sub := rc.DB.Table("room_supervisors").Select("room_id_ref").Where("user_id_ref = ?", currentUser.ID)
+        base = base.Where("id IN (?)", sub)
+    }
     if qText != "" {
         like := "%" + qText + "%"
         base = base.Where("name ILIKE ?", like)
@@ -89,7 +100,11 @@ func (rc *RoomController) ListRooms(c *gin.Context) {
     }
 
     var rooms []models.Room
-    listQ := rc.DB.Order(order)
+    listQ := rc.DB.Model(&models.Room{}).Order(order)
+    if !isAdmin && currentUser.ID != "" {
+        sub := rc.DB.Table("room_supervisors").Select("room_id_ref").Where("user_id_ref = ?", currentUser.ID)
+        listQ = listQ.Where("id IN (?)", sub)
+    }
     // reapply filters on list query
     if qText != "" {
         like := "%" + qText + "%"
