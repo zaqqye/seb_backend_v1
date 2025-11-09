@@ -79,6 +79,10 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
         return
     }
 
+    // Normalise line endings so files saved with only CR (Mac classic) or CRLF behave consistently.
+    data = bytes.ReplaceAll(data, []byte{'\r', '\n'}, []byte{'\n'})
+    data = bytes.ReplaceAll(data, []byte{'\r'}, []byte{'\n'})
+
     delimiter := ','
     firstLineEnd := bytes.IndexByte(data, '\n')
     if firstLineEnd == -1 {
