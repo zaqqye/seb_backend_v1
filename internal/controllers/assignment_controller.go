@@ -23,7 +23,7 @@ type assignRequest struct {
 
 // AssignSupervisor assigns a pengawas user to a room
 func (ac *AssignmentController) AssignSupervisor(c *gin.Context) {
-    roomID := strings.TrimSpace(c.Param("id"))
+    roomID := strings.Trim(strings.TrimSpace(c.Param("id")), "{}")
     if roomID == "" {
         c.JSON(http.StatusBadRequest, gin.H{"error": "invalid room_id"})
         return
