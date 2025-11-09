@@ -264,11 +264,11 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         sortDir = "DESC"
     }
     allowedSorts := map[string]string{
-        "id":                "id",
-        "created_at":        "created_at",
-        "used_at":           "used_at",
-        "code":              "code",
-        "student_user_id":   "student_user_id_ref",
+        "id":               "ec.id",
+        "created_at":       "ec.created_at",
+        "used_at":          "ec.used_at",
+        "code":             "ec.code",
+        "student_user_id":  "ec.student_user_id_ref",
     }
     sortCol, ok := allowedSorts[sortBy]
     if !ok {
@@ -282,37 +282,45 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         return
     }
 
-    base := ec.DB.Model(&models.ExitCode{})
-    // Scope by role
-    if !isAdmin {
-        if len(allowedRooms) == 0 {
-            // pengawas with no rooms: return empty list
-            c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
-            return
+    if !isAdmin && len(allowedRooms) == 0 {
+        c.JSON(http.StatusOK, gin.H{"data": []any{}, "meta": gin.H{"total": 0, "all": all}})
+        return
+    }
+
+    roomFilter := strings.TrimSpace(c.Query("room_id"))
+    studentFilter := strings.TrimSpace(c.Query("student_user_id"))
+    usedFilter := strings.TrimSpace(strings.ToLower(c.DefaultQuery("used", "false")))
+
+    applyFilters := func(q *gorm.DB, alias string) *gorm.DB {
+        col := func(field string) string {
+            if alias != "" {
+                return alias + "." + field
+            }
+            return field
         }
-        base = base.Where("room_id_ref::text IN ?", allowedRooms)
+        if !isAdmin {
+            q = q.Where(col("room_id_ref")+"::text IN ?", allowedRooms)
+        }
+        if roomFilter != "" {
+            q = q.Where(col("room_id_ref")+" = ?", roomFilter)
+        }
+        if studentFilter != "" {
+            q = q.Where(col("student_user_id_ref")+" = ?", studentFilter)
+        }
+        switch usedFilter {
+        case "true", "1":
+            q = q.Where(col("used_at") + " IS NOT NULL")
+        case "all":
+            // no filter
+        case "false", "0":
+            fallthrough
+        default:
+            q = q.Where(col("used_at") + " IS NULL")
+        }
+        return q
     }
 
-    // Filters
-    if roomStr := strings.TrimSpace(c.Query("room_id")); roomStr != "" {
-        base = base.Where("room_id_ref = ?", roomStr)
-    }
-    if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
-        base = base.Where("student_user_id_ref = ?", studentStr)
-    }
-
-    // used filter; default show only unused (used_at is NULL)
-    used := strings.TrimSpace(strings.ToLower(c.DefaultQuery("used", "false")))
-    switch used {
-    case "true", "1":
-        base = base.Where("used_at IS NOT NULL")
-    case "false", "0":
-        base = base.Where("used_at IS NULL")
-    case "all":
-        // no filter
-    default:
-        base = base.Where("used_at IS NULL")
-    }
+    base := applyFilters(ec.DB.Model(&models.ExitCode{}), "")
 
     var total int64
     if err := base.Count(&total).Error; err != nil {
@@ -320,32 +328,24 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         return
     }
 
-    var items []models.ExitCode
-    listQ := ec.DB.Order(order)
-    if !isAdmin {
-        listQ = listQ.Where("room_id_ref::text IN ?", allowedRooms)
+    type exitCodeRow struct {
+        models.ExitCode
+        RoomName    string `gorm:"column:room_name"`
+        StudentName string `gorm:"column:student_name"`
     }
-    // Reapply filters similarly as base
-    if roomStr := strings.TrimSpace(c.Query("room_id")); roomStr != "" {
-        listQ = listQ.Where("room_id_ref = ?", roomStr)
-    }
-    if studentStr := strings.TrimSpace(c.Query("student_user_id")); studentStr != "" {
-        listQ = listQ.Where("student_user_id_ref = ?", studentStr)
-    }
-    switch used {
-    case "true", "1":
-        listQ = listQ.Where("used_at IS NOT NULL")
-    case "false", "0":
-        listQ = listQ.Where("used_at IS NULL")
-    case "all":
-        // none
-    default:
-        listQ = listQ.Where("used_at IS NULL")
-    }
+
+    listQ := applyFilters(
+        ec.DB.Table("exit_codes AS ec").
+            Select("ec.*, COALESCE(u.full_name, '') AS student_name, COALESCE(r.name, '') AS room_name").
+            Joins("LEFT JOIN users u ON u.id = ec.student_user_id_ref").
+            Joins("LEFT JOIN rooms r ON r.id = ec.room_id_ref"),
+        "ec",
+    ).Order(order)
     if !all {
         offset := (page - 1) * limit
         listQ = listQ.Offset(offset).Limit(limit)
     }
+    var items []exitCodeRow
     if err := listQ.Find(&items).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
@@ -356,7 +356,9 @@ func (ec *ExitCodeController) List(c *gin.Context) {
         out = append(out, gin.H{
             "id":              e.ID,
             "room_id":         e.RoomIDRef,
+            "room_name":       e.RoomName,
             "student_user_id": e.StudentUserIDRef,
+            "student_name":    e.StudentName,
             "code":            e.Code,
             "used_at":         e.UsedAt,
             "created_at":      e.CreatedAt,
