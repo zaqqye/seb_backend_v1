@@ -40,6 +40,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
     studentStatusCtrl := &controllers.StudentStatusController{DB: db, Hubs: hubs}
     monCtrl := &controllers.MonitoringController{DB: db, Hubs: hubs}
     assignCtrl := &controllers.AssignmentController{DB: db}
+    oauthCtrl := &controllers.OAuthController{Cfg: cfg}
 
     // Public
     auth := r.Group("/api/v1/auth")
@@ -65,6 +66,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
     {
         api.GET("/auth/me", authCtrl.Me)
         api.POST("/auth/logout", authCtrl.Logout)
+        api.GET("/oauth/moodle/sso", oauthCtrl.GenerateMoodleSSO)
 
         // Shared room listing (admin + pengawas)
         api.GET("/admin/rooms", middleware.RequireRoles("admin", "pengawas"), roomCtrl.ListRooms)

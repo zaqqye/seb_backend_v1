@@ -24,6 +24,11 @@ type Config struct {
     AccessTokenTTLMinutes  string // minutes
     RefreshTokenTTLDays    string // days
     RefreshJWTSecret       string
+    // Moodle SSO / OAuth
+    MoodleSSOClientID     string
+    MoodleSSOClientSecret string
+    MoodleSSOLoginURL     string
+    MoodleSSOSecret       string
 }
 
 func Load() *Config {
@@ -53,6 +58,10 @@ func Load() *Config {
             os.Getenv("REFRESH_JWT_SECRET"),
             os.Getenv("JWT_SECRET"),
         ),
+        MoodleSSOClientID:     os.Getenv("MOODLE_SSO_CLIENT_ID"),
+        MoodleSSOClientSecret: os.Getenv("MOODLE_SSO_CLIENT_SECRET"),
+        MoodleSSOLoginURL:     os.Getenv("MOODLE_SSO_LOGIN_URL"),
+        MoodleSSOSecret:       firstNonEmpty(os.Getenv("MOODLE_SSO_SECRET"), os.Getenv("JWT_SECRET")),
     }
 }
 
