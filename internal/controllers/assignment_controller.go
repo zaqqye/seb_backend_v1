@@ -213,6 +213,24 @@ func (ac *AssignmentController) ListStudents(c *gin.Context) {
         return
     }
 
+    uVal, ok := c.Get("user")
+    if ok {
+        user := uVal.(models.User)
+        if strings.ToLower(user.Role) == "pengawas" {
+            var count int64
+            if err := ac.DB.Model(&models.RoomSupervisor{}).
+                Where("user_id_ref = ? AND room_id_ref = ?", user.ID, roomID).
+                Count(&count).Error; err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+            }
+            if count == 0 {
+                c.JSON(http.StatusForbidden, gin.H{"error": "not allowed for this room"})
+                return
+            }
+        }
+    }
+
     all := strings.EqualFold(c.Query("all"), "true") || c.Query("all") == "1"
     limit := 20
     page := 1
