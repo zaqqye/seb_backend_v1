@@ -39,6 +39,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
     majorCtrl := &controllers.MajorController{DB: db}
     studentStatusCtrl := &controllers.StudentStatusController{DB: db, Hubs: hubs}
     monCtrl := &controllers.MonitoringController{DB: db, Hubs: hubs}
+    assignCtrl := &controllers.AssignmentController{DB: db}
 
     // Public
     auth := r.Group("/api/v1/auth")
@@ -67,6 +68,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
 
         // Shared room listing (admin + pengawas)
         api.GET("/admin/rooms", middleware.RequireRoles("admin", "pengawas"), roomCtrl.ListRooms)
+        api.GET("/admin/rooms/:id/students", middleware.RequireRoles("admin", "pengawas"), assignCtrl.ListStudents)
 
         // Admin-only
         admin := api.Group("/admin", middleware.RequireRoles("admin"))
@@ -98,7 +100,6 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
             admin.GET("/rooms/:id/supervisors", assignCtrl.ListSupervisors)
             admin.POST("/rooms/:id/students", assignCtrl.AssignStudent)
             admin.DELETE("/rooms/:id/students/:user_id", assignCtrl.UnassignStudent)
-            admin.GET("/rooms/:id/students", assignCtrl.ListStudents)
 
             // SDUI screens admin CRUD
             sduiAdmin := &controllers.SDUIAdminController{DB: db}
