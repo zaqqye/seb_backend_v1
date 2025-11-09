@@ -1,6 +1,7 @@
 package controllers
 
 import (
+    "bytes"
     "encoding/csv"
     "errors"
     "fmt"
@@ -50,19 +51,63 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse form"})
         return
     }
-    file, _, err := c.Request.FormFile("file")
+    file, fileHeader, err := c.Request.FormFile("file")
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
         return
     }
     defer file.Close()
 
-    reader := csv.NewReader(file)
-    reader.TrimLeadingSpace = true
+    if fileHeader == nil || fileHeader.Filename == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file name"})
+        return
+    }
+    filename := strings.ToLower(strings.TrimSpace(fileHeader.Filename))
+    if !strings.HasSuffix(filename, ".csv") {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "only .csv files are allowed"})
+        return
+    }
+
+    data, err := io.ReadAll(file)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read file"})
+        return
+    }
+    if len(bytes.TrimSpace(data)) == 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "file is empty"})
+        return
+    }
+
+    delimiter := ','
+    firstLineEnd := bytes.IndexByte(data, '\n')
+    if firstLineEnd == -1 {
+        firstLineEnd = len(data)
+    }
+    firstLine := data[:firstLineEnd]
+    firstLine = bytes.TrimPrefix(firstLine, []byte{0xEF, 0xBB, 0xBF})
+    if bytes.Contains(firstLine, []byte{';'}) && !bytes.Contains(firstLine, []byte{','}) {
+        delimiter = ';'
+    }
+
+    newReader := func() *csv.Reader {
+        r := csv.NewReader(bytes.NewReader(data))
+        r.TrimLeadingSpace = true
+        r.FieldsPerRecord = -1
+        if delimiter != ',' {
+            r.Comma = delimiter
+        }
+        return r
+    }
+
+    reader := newReader()
     header, err := reader.Read()
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read header"})
         return
+    }
+    for i := range header {
+        header[i] = strings.TrimSpace(header[i])
+        header[i] = strings.TrimPrefix(header[i], "\ufeff")
     }
 
     headerIdx := make(map[string]int, len(header))
