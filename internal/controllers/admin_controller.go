@@ -45,7 +45,7 @@ func parseBoolDefaultTrue(val string) (bool, bool) {
 
 // ImportUsers allows admin to bulk-create users from a CSV file.
 // Expected header columns (case-insensitive):
-// full_name, email, password, role (optional), kelas (optional), jurusan (optional), active (optional)
+// full_name, email, password, role (optional), kelas (optional), jurusan (optional), active (optional), room_name (optional)
 func (a *AdminController) ImportUsers(c *gin.Context) {
     // Limit max upload size (10MB) to avoid accidental huge files.
     if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
@@ -154,6 +154,7 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
     )
 
     rowNum := 1 // already consumed header line
+    roomCache := make(map[string]models.Room)
     for {
         row, err := reader.Read()
         if err == io.EOF {
@@ -176,6 +177,7 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
         kelas := getVal(row, "kelas")
         jurusan := getVal(row, "jurusan")
         activeStr := getVal(row, "active")
+        roomName := getVal(row, "room_name")
 
         if fullName == "" || email == "" || password == "" {
             failures = append(failures, userImportError{
@@ -244,7 +246,35 @@ func (a *AdminController) ImportUsers(c *gin.Context) {
             Active:   activeVal,
         }
 
-        if err := a.DB.Create(&user).Error; err != nil {
+        if err := a.DB.Transaction(func(tx *gorm.DB) error {
+            if err := tx.Create(&user).Error; err != nil {
+                return err
+            }
+            if roomName != "" {
+                if role != "siswa" {
+                    return fmt.Errorf("room assignment only allowed for siswa role")
+                }
+                normalized := strings.ToLower(roomName)
+                room, ok := roomCache[normalized]
+                if !ok {
+                    var fetched models.Room
+                    if err := tx.Where("LOWER(name) = ?", normalized).First(&fetched).Error; err != nil {
+                        if errors.Is(err, gorm.ErrRecordNotFound) {
+                            return fmt.Errorf("room '%s' not found", roomName)
+                        }
+                        return err
+                    }
+                    roomCache[normalized] = fetched
+                    room = fetched
+                }
+                assignment := models.RoomStudent{UserIDRef: user.ID, RoomIDRef: room.ID}
+                if err := tx.Where("user_id_ref = ? AND room_id_ref = ?", assignment.UserIDRef, assignment.RoomIDRef).
+                    FirstOrCreate(&assignment).Error; err != nil {
+                    return err
+                }
+            }
+            return nil
+        }); err != nil {
             failures = append(failures, userImportError{
                 Row:   rowNum,
                 Email: email,
