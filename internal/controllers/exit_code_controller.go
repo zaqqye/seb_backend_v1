@@ -246,7 +246,7 @@ func (ec *ExitCodeController) List(c *gin.Context) {
 
     // Query params: limit, page, all, sort_by, sort_dir, room_id, used
     all := strings.EqualFold(c.Query("all"), "true") || c.Query("all") == "1"
-    limit := 20
+    limit := 50
     page := 1
     if v := c.Query("limit"); v != "" {
         if n, err := strconv.Atoi(v); err == nil && n > 0 {

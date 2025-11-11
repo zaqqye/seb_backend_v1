@@ -38,7 +38,7 @@ func (rc *RoomController) ListRooms(c *gin.Context) {
     }
     // Pagination/sort same pattern as users; add filters: q (name), active
     all := strings.EqualFold(c.Query("all"), "true") || c.Query("all") == "1"
-    limit := 20
+    limit := 50
     page := 1
     if v := c.Query("limit"); v != "" {
         if n, err := strconv.Atoi(v); err == nil && n > 0 {
