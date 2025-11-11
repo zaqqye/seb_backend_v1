@@ -1,6 +1,8 @@
 package controllers
 
 import (
+    "errors"
+    "fmt"
     "net/http"
     "strings"
     "time"
@@ -10,6 +12,7 @@ import (
     "github.com/google/uuid"
     "gorm.io/gorm"
 
+    "github.com/zaqqye/seb_backend_v1/internal/config"
     "github.com/zaqqye/seb_backend_v1/internal/middleware"
     "github.com/zaqqye/seb_backend_v1/internal/models"
     "github.com/zaqqye/seb_backend_v1/internal/utils"
@@ -21,6 +24,7 @@ type AuthController struct {
     RefreshSecret string
     AccessTTL   time.Duration
     RefreshTTL  time.Duration
+    Cfg        *config.Config
 }
 
 type registerRequest struct {
@@ -34,8 +38,10 @@ type registerRequest struct {
 }
 
 type loginRequest struct {
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required"`
+    Email      string `json:"email" binding:"required,email"`
+    Password   string `json:"password" binding:"required"`
+    Platform   string `json:"platform" binding:"required"`
+    AppVersion string `json:"app_version" binding:"required"`
 }
 
 func (a *AuthController) Register(c *gin.Context) {
@@ -104,6 +110,10 @@ func (a *AuthController) Login(c *gin.Context) {
     var req loginRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    if err := a.ensureAppVersionAllowed(req.Platform, req.AppVersion); err != nil {
+        c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
         return
     }
 
@@ -197,6 +207,54 @@ func (a *AuthController) issueTokens(user models.User) (access tokenPair, refres
     }
     if err = a.DB.Create(&rec).Error; err != nil { return }
     return
+}
+
+func (a *AuthController) ensureAppVersionAllowed(platform, version string) error {
+    platform = strings.ToLower(strings.TrimSpace(platform))
+    if platform == "" {
+        return fmt.Errorf("platform is required")
+    }
+    currentVersion := strings.TrimSpace(version)
+    if currentVersion == "" {
+        return fmt.Errorf("app_version is required")
+    }
+    required, err := a.getRequiredVersion(platform)
+    if err != nil {
+        return err
+    }
+    if required == "" {
+        return nil
+    }
+    if utils.CompareVersions(currentVersion, required) < 0 {
+        return fmt.Errorf("please update your app to version %s or newer", required)
+    }
+    return nil
+}
+
+func (a *AuthController) getRequiredVersion(platform string) (string, error) {
+    key := fmt.Sprintf("app_min_version_%s", platform)
+    var cfgRec models.AppConfig
+    if err := a.DB.Where("key = ?", key).First(&cfgRec).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return strings.TrimSpace(a.fallbackVersion(platform)), nil
+        }
+        return "", err
+    }
+    return strings.TrimSpace(cfgRec.Value), nil
+}
+
+func (a *AuthController) fallbackVersion(platform string) string {
+    if a.Cfg == nil {
+        return ""
+    }
+    switch platform {
+    case "android":
+        return a.Cfg.MinAppVersionAndroid
+    case "ios":
+        return a.Cfg.MinAppVersionIOS
+    default:
+        return ""
+    }
 }
 
 type refreshRequest struct {

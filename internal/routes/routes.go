@@ -33,6 +33,7 @@ func Register(r *gin.Engine, db *gorm.DB, cfg *config.Config, hubs *ws.Hubs) {
         RefreshSecret: cfg.RefreshJWTSecret,
         AccessTTL:     accessTTL,
         RefreshTTL:    refreshDays,
+        Cfg:           cfg,
     }
     adminCtrl := &controllers.AdminController{DB: db}
     roomCtrl := &controllers.RoomController{DB: db}
