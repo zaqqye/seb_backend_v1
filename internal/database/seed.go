@@ -59,16 +59,7 @@ func SeedSDUIScreens(db *gorm.DB) error {
         ScreenVersion int
         Payload string
     }
-    screens := []seedDef{
-        {
-            Name: "exit_code", Platform: "android", Role: "", SchemaVersion: 1, ScreenVersion: 1,
-            Payload: `{"schema_version":1,"screen_version":1,"name":"exit_code","platform":"android","components":[{"id":"code","type":"input","props":{"name":"code","hint":"Masukkan Exit Code"}},{"id":"submit","type":"button","props":{"text":"Gunakan Kode"},"action":{"type":"http","method":"POST","url":"/api/v1/exit-codes/consume","auth":"bearer","bodyBindings":{"code":"code"},"onSuccess":[{"type":"toast","message":"Kode diterima"},{"type":"navigate","to":"dashboard"}],"onError":[{"type":"toast","message":"Kode tidak valid/terpakai"}]}}]}`,
-        },
-        {
-            Name: "exit_code", Platform: "ios", Role: "", SchemaVersion: 1, ScreenVersion: 1,
-            Payload: `{"schema_version":1,"screen_version":1,"name":"exit_code","platform":"ios","components":[{"id":"code","type":"input","props":{"name":"code","hint":"Masukkan Exit Code"}},{"id":"submit","type":"button","props":{"text":"Gunakan Kode"},"action":{"type":"http","method":"POST","url":"/api/v1/exit-codes/consume","auth":"bearer","bodyBindings":{"code":"code"},"onSuccess":[{"type":"toast","message":"Kode diterima"},{"type":"navigate","to":"dashboard"}],"onError":[{"type":"toast","message":"Kode tidak valid/terpakai"}]}}]}`,
-        },
-    }
+    screens := []seedDef{}
 
     for _, s := range screens {
         var count int64
@@ -93,6 +84,6 @@ func SeedSDUIScreens(db *gorm.DB) error {
             return err
         }
     }
-    log.Println("Seeded SDUI screens (exit_code) for android & ios")
+    log.Println("No SDUI screens seeded (managed externally)")
     return nil
 }
