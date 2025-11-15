@@ -48,6 +48,7 @@ type generateExitCodeRequest struct {
     Length      int    `json:"length"`         // optional length of generated code; defaults to 6
     StudentIDs  []string `json:"student_ids"`    // optional list of specific students within the room
     AllStudents bool   `json:"all_students"`   // when true, generate codes for every student in the room
+    SingleForRoom bool `json:"single_for_room"` // when true, generate one reusable code for the room
 }
 
 func (ec *ExitCodeController) Generate(c *gin.Context) {
@@ -66,13 +67,18 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
     }
     trimmedRoomID := strings.TrimSpace(*req.RoomID)
     req.RoomID = &trimmedRoomID
-    if !req.AllStudents && len(req.StudentIDs) == 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids is required unless all_students is true"})
-        return
-    }
-    if req.AllStudents && len(req.StudentIDs) > 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids must be empty when all_students is true"})
-        return
+    if req.SingleForRoom {
+        // room-wide code does not require student_ids/all_students
+        // continue
+    } else {
+        if !req.AllStudents && len(req.StudentIDs) == 0 {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids is required unless all_students is true"})
+            return
+        }
+        if req.AllStudents && len(req.StudentIDs) > 0 {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "student_ids must be empty when all_students is true"})
+            return
+        }
     }
 
     allowedRooms, isAdmin, err := ec.allowedRoomIDsFor(user)
@@ -139,9 +145,11 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
         }
     }
 
-    if len(targetStudentIDs) == 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "no students found for code generation"})
-        return
+    if !req.SingleForRoom {
+        if len(targetStudentIDs) == 0 {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "no students found for code generation"})
+            return
+        }
     }
 
     studentUUIDs, err := toUUIDSlice(targetStudentIDs)
@@ -151,24 +159,49 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
     }
 
     // Sanity check: ensure all target users exist and have siswa role.
-    var students []models.User
-    if err := ec.DB.Where("id IN ?", studentUUIDs).Find(&students).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-    if len(students) != len(targetStudentIDs) {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "one or more students are invalid"})
-        return
-    }
-    for _, s := range students {
-        if strings.ToLower(s.Role) != "siswa" {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "exit code can only be generated for siswa users"})
+    if !req.SingleForRoom {
+        var students []models.User
+        if err := ec.DB.Where("id IN ?", studentUUIDs).Find(&students).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
             return
+        }
+        if len(students) != len(targetStudentIDs) {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "one or more students are invalid"})
+            return
+        }
+        for _, s := range students {
+            if strings.ToLower(s.Role) != "siswa" {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "exit code can only be generated for siswa users"})
+                return
+            }
         }
     }
 
-    created := make([]models.ExitCode, 0, len(targetStudentIDs))
+    created := make([]models.ExitCode, 0, 1)
     err = ec.DB.Transaction(func(tx *gorm.DB) error {
+        if req.SingleForRoom {
+            const maxAttempts = 5
+            var rec models.ExitCode
+            for attempt := 0; attempt < maxAttempts; attempt++ {
+                code, genErr := utils.GenerateCode(req.Length)
+                if genErr != nil { return genErr }
+                rec = models.ExitCode{
+                    UserIDRef:  user.ID,
+                    RoomIDRef:  req.RoomID,
+                    Code:       code,
+                    Reusable:   true,
+                }
+                if err := tx.Create(&rec).Error; err != nil {
+                    var pgErr *pgconn.PgError
+                    if errors.As(err, &pgErr) && pgErr.Code == "23505" && attempt < maxAttempts-1 { continue }
+                    return err
+                }
+                break
+            }
+            if rec.ID == "" { return errors.New("failed to generate exit code") }
+            created = append(created, rec)
+            return nil
+        }
         for _, studentID := range targetStudentIDs {
             // Mark previous unused codes for this student (same room context) as used
             now := time.Now().UTC()
@@ -190,9 +223,10 @@ func (ec *ExitCodeController) Generate(c *gin.Context) {
                 if genErr != nil {
                     return genErr
                 }
+                sid := studentID
                 rec = models.ExitCode{
                     UserIDRef:        user.ID,
-                    StudentUserIDRef: studentID,
+                    StudentUserIDRef: &sid,
                     RoomIDRef:        req.RoomID,
                     Code:             code,
                 }
@@ -299,7 +333,15 @@ func (ec *ExitCodeController) List(c *gin.Context) {
             return field
         }
         if !isAdmin {
-            q = q.Where(col("room_id_ref")+"::text IN ?", allowedRooms)
+            if len(allowedRooms) == 0 {
+                return q.Where("1=0")
+            }
+            // Use supervisor join to preserve index usage
+            if alias == "ec" {
+                q = q.Joins("JOIN room_supervisors sup ON sup.room_id_ref = ec.room_id_ref AND sup.user_id_ref = ?", user.ID)
+            } else {
+                q = q.Joins("JOIN room_supervisors sup ON sup.room_id_ref = "+col("room_id_ref")+" AND sup.user_id_ref = ?", user.ID)
+            }
         }
         if roomFilter != "" {
             q = q.Where(col("room_id_ref")+" = ?", roomFilter)
@@ -481,36 +523,56 @@ func (ec *ExitCodeController) Consume(c *gin.Context) {
 
     var consumed models.ExitCode
     err = ec.DB.Transaction(func(tx *gorm.DB) error {
+        // Try student-specific code first
         q := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
             Where("code = ? AND used_at IS NULL AND student_user_id_ref = ?", req.Code, targetStudentID)
         if req.RoomID != nil {
             q = q.Where("room_id_ref = ?", *req.RoomID)
         }
-        if err := q.First(&consumed).Error; err != nil {
-            return err
+        err := q.First(&consumed).Error
+        if err != nil {
+            if !errors.Is(err, gorm.ErrRecordNotFound) {
+                return err
+            }
+            // Fallback: room-wide reusable code
+            rq := tx.Where("code = ? AND reusable = ?", req.Code, true)
+            if req.RoomID != nil {
+                rq = rq.Where("room_id_ref = ?", *req.RoomID)
+            }
+            if err := rq.First(&consumed).Error; err != nil {
+                return err
+            }
+            // Validate student belongs to the code room
+            if consumed.RoomIDRef == nil {
+                return gorm.ErrRecordNotFound
+            }
+            var count int64
+            if err := tx.Model(&models.RoomStudent{}).Where("user_id_ref = ? AND room_id_ref = ?", targetStudentID, *consumed.RoomIDRef).Count(&count).Error; err != nil {
+                return err
+            }
+            if count == 0 {
+                return errNotAllowedForRoom
+            }
+            // Validate pengawas scope if caller pengawas
+            if role == "pengawas" {
+                permitted := false
+                for _, rid := range allowedRooms {
+                    if rid == *consumed.RoomIDRef { permitted = true; break }
+                }
+                if !permitted { return errNotAllowedForRoom }
+            }
+            // Reusable code: do not mark used_at, allow multiple students
+            return nil
         }
         if role == "pengawas" {
-            if consumed.RoomIDRef == nil {
-                return errNotAllowedForRoom
-            }
+            if consumed.RoomIDRef == nil { return errNotAllowedForRoom }
             permitted := false
-            for _, rid := range allowedRooms {
-                if rid == *consumed.RoomIDRef {
-                    permitted = true
-                    break
-                }
-            }
-            if !permitted {
-                return errNotAllowedForRoom
-            }
+            for _, rid := range allowedRooms { if rid == *consumed.RoomIDRef { permitted = true; break } }
+            if !permitted { return errNotAllowedForRoom }
         }
-        if !isAdmin && role != "pengawas" && role != "siswa" {
-            return errNotAllowedForRoom
-        }
+        if !isAdmin && role != "pengawas" && role != "siswa" { return errNotAllowedForRoom }
         consumed.UsedAt = &now
-        if err := tx.Save(&consumed).Error; err != nil {
-            return err
-        }
+        if err := tx.Save(&consumed).Error; err != nil { return err }
         return nil
     })
     if err != nil {

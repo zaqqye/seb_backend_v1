@@ -1,6 +1,7 @@
 package controllers
 
 import (
+    "fmt"
     "net/http"
     "strconv"
     "strings"
@@ -48,16 +49,27 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
     sortBy := strings.ToLower(c.DefaultQuery("sort_by", "updated_at"))
     sortDir := strings.ToUpper(c.DefaultQuery("sort_dir", "DESC"))
     if sortDir != "ASC" && sortDir != "DESC" { sortDir = "DESC" }
+    // Prefer index-friendly sorts (avoid COALESCE in ORDER BY)
     allowedSorts := map[string]string{
-        "updated_at": "monitoring_updated_at",
-        "full_name":  "full_name",
-        "email":      "email",
-        "kelas":      "kelas",
-        "jurusan":    "jurusan",
-        "locked":     "monitoring_locked",
+        "status_updated_at": "ss.updated_at",
+        "user_updated_at":   "u.updated_at",
+        "full_name":         "u.full_name",
+        "email":             "u.email",
+        "kelas":             "u.kelas",
+        "jurusan":           "u.jurusan",
+        "locked":            "ss.locked",
+        // legacy alias; handled specially below
+        "updated_at":        "",
     }
-    sortCol, ok := allowedSorts[sortBy]; if !ok { sortCol = allowedSorts["updated_at"] }
-    order := sortCol + " " + sortDir
+    order := ""
+    if sortBy == "updated_at" {
+        // Emulate merged updated_at but keep indexes usable
+        order = fmt.Sprintf("ss.updated_at %s NULLS LAST, u.updated_at %s", sortDir, sortDir)
+    } else if col, ok := allowedSorts[sortBy]; ok && col != "" {
+        order = fmt.Sprintf("%s %s", col, sortDir)
+    } else {
+        order = fmt.Sprintf("ss.updated_at %s NULLS LAST, u.updated_at %s", sortDir, sortDir)
+    }
 
     qText := strings.TrimSpace(c.Query("q"))
     roomID := strings.TrimSpace(c.Query("room_id"))
@@ -87,12 +99,13 @@ func (mc *MonitoringController) ListStudents(c *gin.Context) {
             like := "%" + qText + "%"
             q = q.Where("u.full_name ILIKE ? OR u.email ILIKE ?", like, like)
         }
-        if !isAdmin {
-            if len(allowedRooms) == 0 {
-                return q.Where("1 = 0")
-            }
-            q = q.Where("rs.room_id_ref::text IN ?", allowedRooms)
+    if !isAdmin {
+        if len(allowedRooms) == 0 {
+            return q.Where("1 = 0")
         }
+        // Scope via join to room_supervisors to keep indices usable (avoid ::text casts)
+        q = q.Joins("JOIN room_supervisors sup ON sup.room_id_ref = rs.room_id_ref AND sup.user_id_ref = ?", user.ID)
+    }
         if roomID != "" {
             q = q.Where("rs.room_id_ref = ?", roomID)
         }
